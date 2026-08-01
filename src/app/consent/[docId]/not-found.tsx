@@ -1,13 +1,13 @@
 import Letterhead from "@/components/Letterhead";
 
-export default function Home() {
+export default function ConsentNotFound() {
   return (
     <main className="page-shell">
       <div className="document">
         <div className="document-card">
-          <Letterhead title="Tanwir Institute" />
+          <Letterhead title="We Couldn't Find That Record" />
           <div className="message-body">
-            <p>This link only works from a scholarship consent email.</p>
+            <p>Please contact us if this is unexpected.</p>
           </div>
         </div>
       </div>

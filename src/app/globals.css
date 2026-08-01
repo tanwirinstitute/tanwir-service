@@ -1,17 +1,35 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --font-sans: "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --background: #f6f7f5;
+  --surface: #ffffff;
+  --foreground: #1c1f1d;
+  --muted: #5b6461;
+  --border: #e3e6e2;
+
+  --primary: #00705d;
+  --primary-foreground: #ffffff;
+  --danger: #b91c1c;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #10130f;
+    --surface: #171b16;
+    --foreground: #eef1ec;
+    --muted: #9aa39c;
+    --border: rgba(238, 241, 236, 0.12);
+
+    --primary: #35c7a8;
+    --primary-foreground: #06251e;
+    --danger: #f87171;
   }
 }
 
-html {
-  height: 100%;
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
 }
 
 html,
@@ -21,29 +39,273 @@ body {
 }
 
 body {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
+  min-height: 100vh;
+  font-family: var(--font-sans);
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
-
 a {
-  color: inherit;
-  text-decoration: none;
+  color: var(--primary);
 }
 
+/* Page shell */
+
+.page-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+}
+
+.document {
+  width: 100%;
+  max-width: 600px;
+}
+
+.document-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 40px;
+}
+
+@media (max-width: 640px) {
+  .document-card {
+    padding: 28px 20px;
+  }
+}
+
+/* Letterhead */
+
+.letterhead {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.logo-chip {
+  display: inline-block;
+  margin-bottom: 22px;
+}
+
+.logo-chip img {
+  width: 210px;
+  height: auto;
+  display: block;
+}
+
+/* The logo's tagline is black artwork, so give it a light plate in dark mode
+   rather than letting it disappear into the surface. */
 @media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
+  .logo-chip {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 12px 16px;
+  }
+}
+
+.letterhead h1 {
+  font-family: var(--font-sans);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--foreground);
+  line-height: 1.3;
+}
+
+.letterhead .subtitle {
+  font-family: var(--font-sans);
+  color: var(--muted);
+  font-size: 0.92rem;
+  margin-top: 6px;
+}
+
+/* Contract body */
+
+.preamble {
+  font-family: var(--font-sans);
+  color: var(--muted);
+  line-height: 1.65;
+  font-size: 0.96rem;
+  margin-bottom: 28px;
+}
+
+.clauses {
+  list-style: decimal;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.clauses li::marker {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.clause-title {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--foreground);
+  margin-bottom: 4px;
+}
+
+.clause-body {
+  font-family: var(--font-sans);
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+
+.clause-body strong {
+  color: var(--foreground);
+  font-weight: 700;
+}
+
+/* Hadith quote */
+
+.hadith {
+  border-left: 3px solid var(--primary);
+  padding: 4px 18px;
+  margin: 28px 0;
+}
+
+.hadith p {
+  font-style: italic;
+  color: var(--foreground);
+  font-size: 0.98rem;
+  line-height: 1.65;
+  margin-bottom: 6px;
+}
+
+.hadith cite {
+  display: block;
+  font-style: normal;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* Consent action */
+
+.consent-action {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.consent-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.consent-check input[type="checkbox"] {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  margin-top: 2px;
+  border: 1.5px solid var(--muted);
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  background: var(--surface);
+}
+
+.consent-check input[type="checkbox"]:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.consent-check input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid var(--primary-foreground);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.consent-check input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.consent-check label {
+  font-family: var(--font-sans);
+  font-size: 0.92rem;
+  color: var(--foreground);
+  line-height: 1.55;
+  cursor: pointer;
+}
+
+.confirm-btn {
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: none;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 0.98rem;
+  cursor: pointer;
+  transition: opacity 150ms ease;
+}
+
+.confirm-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.confirm-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.confirm-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.status-message {
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  margin-top: 12px;
+  text-align: center;
+}
+
+.status-message.success {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.status-message.error {
+  color: var(--danger);
+}
+
+/* Simple message pages (not-found / already-confirmed / error) */
+
+.message-body {
+  text-align: center;
+}
+
+.message-body p {
+  font-family: var(--font-sans);
+  color: var(--muted);
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confirm-btn {
+    transition: none;
   }
 }

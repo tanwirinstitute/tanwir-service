@@ -1,13 +1,15 @@
+"use client";
+
 import Letterhead from "@/components/Letterhead";
 
-export default function Home() {
+export default function ConsentError() {
   return (
     <main className="page-shell">
       <div className="document">
         <div className="document-card">
-          <Letterhead title="Tanwir Institute" />
+          <Letterhead title="Something Went Wrong" />
           <div className="message-body">
-            <p>This link only works from a scholarship consent email.</p>
+            <p>Please try again, or contact us if the problem persists.</p>
           </div>
         </div>
       </div>
