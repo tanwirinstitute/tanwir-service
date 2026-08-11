@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Tanwir Institute",
-  description: "Tanwir Institute",
+  title: "Tanwir Admin",
+  description: "Tanwir Institute admin",
 };
 
 export default function RootLayout({

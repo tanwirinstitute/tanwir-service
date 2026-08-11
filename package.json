@@ -1,24 +1,25 @@
 {
-  "name": "tanwir-service",
-  "version": "0.1.0",
+  "name": "tanwir-gateway",
+  "version": "1.0.0",
   "private": true,
+  "description": "Subdomain routing gateway for tanwir.institute — proxies each subdomain to its own app.",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --port 3000",
+    "dev:all": "concurrently -n gateway,consent,emailer,admin,tlp -c blue,green,yellow,magenta,cyan \"next dev --port 3000\" \"npm run dev --prefix consent\" \"npm run dev --prefix emailer\" \"npm run dev --prefix admin\" \"npm run dev --prefix tlp\"",
     "build": "next build",
-    "start": "next start",
+    "start": "next start --port 3000",
     "lint": "eslint"
   },
   "dependencies": {
-    "firebase-admin": "^14.2.0",
     "next": "16.2.12",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@types/node": "^20",
-    "@types/node-cron": "^3.0.11",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
     "typescript": "^5"

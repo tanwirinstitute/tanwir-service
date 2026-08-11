@@ -1,16 +1,12 @@
-import Letterhead from "@/components/Letterhead";
-
-export default function Home() {
+export default function Page() {
   return (
-    <main className="page-shell">
-      <div className="document">
-        <div className="document-card">
-          <Letterhead title="Tanwir Institute" />
-          <div className="message-body">
-            <p>This link only works from a scholarship consent email.</p>
-          </div>
-        </div>
-      </div>
+    <main style={{ fontFamily: "system-ui, sans-serif", padding: "3rem" }}>
+      <h1>Tanwir Institute</h1>
+      <p>
+        This is the gateway app for tanwir.institute. It routes subdomains to
+        their own apps — try consent.tanwir.institute, email.tanwir.institute,
+        admin.tanwir.institute, or tlp.tanwir.institute.
+      </p>
     </main>
   );
 }

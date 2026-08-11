@@ -18,8 +18,12 @@ npm-debug.log*
 .env*
 !.env.example
 
+# vercel
+.vercel
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
-.claude
+# secrets
+key.json
