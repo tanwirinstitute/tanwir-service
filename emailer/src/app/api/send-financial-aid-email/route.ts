@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
-import { sendBrevoEmail, BrevoError } from "@/lib/brevo";
+import { sendGmailEmail, GmailError } from "@/lib/gmail";
 
 interface FinancialAidEmailRequest {
   recipientEmail: string;
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const brevoResponse = await sendBrevoEmail({
+    const sendResult = await sendGmailEmail({
       to: [{ email: recipientEmail, name: studentName }],
       subject: "Congratulations! Your Financial Aid Application Has Been Approved",
       htmlContent: buildHtml(studentName, programName, discountValue, discountCode, additionalDetails),
@@ -83,13 +83,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "Financial aid acceptance email sent successfully",
-      brevoResponse,
+      messageId: sendResult.id,
     });
   } catch (error) {
     console.error("Error sending email:", error);
-    if (error instanceof BrevoError) {
+    if (error instanceof GmailError) {
       return NextResponse.json(
-        { success: false, message: "Failed to send email via Brevo API", error: error.body },
+        { success: false, message: "Failed to send email via Gmail API", error: error.body },
         { status: error.status }
       );
     }

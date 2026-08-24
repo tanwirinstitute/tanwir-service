@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
-import { sendBrevoEmail, isValidEmail, BrevoError } from "@/lib/brevo";
+import { sendGmailEmail, isValidEmail, GmailError } from "@/lib/gmail";
 
 interface PropheticGuidanceWelcomeRequest {
   recipients: { email: string; name?: string }[];
@@ -72,21 +72,21 @@ export async function POST(request: NextRequest) {
   const results = [];
   for (const recipient of recipients) {
     try {
-      const brevoResponse = (await sendBrevoEmail({
+      const sendResult = await sendGmailEmail({
         to: [{ email: recipient.email, name: recipient.name || recipient.email.split("@")[0] }],
         subject: "Welcome to Prophetic Guidance - Tanwir Institute",
         htmlContent: buildHtml(recipient.name, classDate, year1Year2Time, graduatesJourneyTime),
         senderName: senderName || "Omar Popal, Tanwir Institute",
         senderEmail,
-      })) as { messageId?: string };
+      });
 
-      results.push({ email: recipient.email, success: true, messageId: brevoResponse?.messageId });
+      results.push({ email: recipient.email, success: true, messageId: sendResult.id });
     } catch (error) {
       console.error(`Error sending email to ${recipient.email}:`, error);
       results.push({
         email: recipient.email,
         success: false,
-        error: error instanceof BrevoError ? error.body : (error as Error).message,
+        error: error instanceof GmailError ? error.body : (error as Error).message,
       });
     }
   }

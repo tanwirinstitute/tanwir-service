@@ -29,7 +29,7 @@ export const openApiSpec = {
   info: {
     title: "Tanwir Emailer API",
     version: "2.0.0",
-    description: "Transactional email service for Tanwir Institute (Brevo-backed).",
+    description: "Transactional email service for Tanwir Institute (Gmail-backed).",
   },
   servers: [
     { url: "https://email.tanwir.institute", description: "Production" },
@@ -84,7 +84,7 @@ export const openApiSpec = {
           "200": { description: "Sent", content: { "application/json": { schema: sendResult } } },
           "400": { description: "Missing or invalid fields", content: { "application/json": { schema: errorResult } } },
           "401": { description: "Missing/invalid bearer token", content: { "application/json": { schema: errorResult } } },
-          "500": { description: "Brevo send failed", content: { "application/json": { schema: errorResult } } },
+          "500": { description: "Gmail send failed", content: { "application/json": { schema: errorResult } } },
         },
       },
     },
@@ -114,7 +114,7 @@ export const openApiSpec = {
           "200": { description: "Sent", content: { "application/json": { schema: sendResult } } },
           "400": { description: "Missing or invalid fields", content: { "application/json": { schema: errorResult } } },
           "401": { description: "Missing/invalid bearer token", content: { "application/json": { schema: errorResult } } },
-          "500": { description: "Brevo send failed", content: { "application/json": { schema: errorResult } } },
+          "500": { description: "Gmail send failed", content: { "application/json": { schema: errorResult } } },
         },
       },
     },

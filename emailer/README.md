@@ -1,12 +1,12 @@
 # Tanwir Emailer
 
-A Next.js app that sends transactional email for Tanwir Institute via the Brevo API. Deployed at `email.tanwir.institute`, reached through the root gateway's subdomain proxy.
+A Next.js app that sends transactional email for Tanwir Institute via the Gmail API (OAuth2). Deployed at `email.tanwir.institute`, reached through the root gateway's subdomain proxy.
 
 ## Setup
 
 1. Install dependencies: `npm install`
 2. Create a `.env` with:
-   - `BREVO_API_KEY` — Brevo transactional email API key
+   - `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` / `GMAIL_REFRESH_TOKEN` — OAuth2 credentials for the sending Gmail account
    - `SENDER_NAME` / `SENDER_EMAIL` — default From header
    - `MAIL_API_TOKEN` — shared secret required on every `send-*` endpoint; must match `ZAKAT_MAIL_API_TOKEN` in `consent/.env`
 3. `npm run dev` (runs on port 3002)

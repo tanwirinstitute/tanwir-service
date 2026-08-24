@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 /**
  * Every send-* endpoint is gated by a single shared secret (MAIL_API_TOKEN) so
- * that anyone who can reach this service can't spend Brevo send volume or
+ * that anyone who can reach this service can't spend Gmail send volume or
  * impersonate Tanwir Institute. Callers (e.g. the consent app) authenticate
  * with an `Authorization: Bearer <token>` header.
  */

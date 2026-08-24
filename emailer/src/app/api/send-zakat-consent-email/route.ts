@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
-import { sendBrevoEmail, isValidEmail, BrevoError } from "@/lib/brevo";
+import { sendGmailEmail, isValidEmail, GmailError } from "@/lib/gmail";
 
 interface SendZakatConsentEmailRequest {
   recipientEmail: string;
@@ -50,18 +50,22 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const brevoResponse = await sendBrevoEmail({
+    const sendResult = await sendGmailEmail({
       to: [{ email: recipientEmail, name: studentName }],
       subject: "Action Required: Zakat Consent for " + programName,
       htmlContent: buildHtml(studentName, programName, consentLink),
     });
 
-    return NextResponse.json({ success: true, message: "Zakat consent email sent successfully", brevoResponse });
+    return NextResponse.json({
+      success: true,
+      message: "Zakat consent email sent successfully",
+      messageId: sendResult.id,
+    });
   } catch (error) {
     console.error("Error sending zakat consent email:", error);
-    if (error instanceof BrevoError) {
+    if (error instanceof GmailError) {
       return NextResponse.json(
-        { success: false, message: "Failed to send email via Brevo API", error: error.body },
+        { success: false, message: "Failed to send email via Gmail API", error: error.body },
         { status: error.status }
       );
     }
