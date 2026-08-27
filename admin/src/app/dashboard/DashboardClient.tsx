@@ -267,7 +267,9 @@ export default function DashboardClient({ customToken }: { customToken: string }
                     <td className="col-courses" data-label="Courses">
                       <span className="course-badge">{student.matchingCourses.length}</span>
                     </td>
-                    <td className="col-chevron">{isExpanded ? "▾" : "▸"}</td>
+                    <td className="col-chevron">
+                      <span className="chevron-icon">▸</span>
+                    </td>
                   </tr>
 
                   {isExpanded && (
