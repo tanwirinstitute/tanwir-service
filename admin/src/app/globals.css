@@ -1,3 +1,11 @@
+:root {
+  /* Sampled from tanwir.institute */
+  --brand-green: #2a6051;
+  --brand-green-light: #397967;
+  --brand-green-tint: #eaf2ef;
+  --brand-ink: #121b18;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -32,6 +40,7 @@ body {
   font-size: 1.5rem;
   margin: 0;
   letter-spacing: -0.01em;
+  color: var(--brand-ink);
 }
 
 .kpi-chips {
@@ -45,14 +54,14 @@ body {
   gap: 0.35rem;
   padding: 0.4rem 0.75rem;
   border-radius: 999px;
-  background: #eef2f6;
-  color: #4b5563;
+  background: var(--brand-green-tint);
+  color: var(--brand-green);
   font-size: 0.8rem;
 }
 
 .kpi-chip strong {
   font-size: 0.95rem;
-  color: #111827;
+  color: var(--brand-green);
 }
 
 .kpi-chip.warn {
@@ -89,8 +98,8 @@ body {
 }
 
 .search-input:focus {
-  border-color: #0078d4;
-  box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.12);
+  border-color: var(--brand-green);
+  box-shadow: 0 0 0 3px rgba(42, 96, 81, 0.14);
 }
 
 .filter-field {
@@ -117,7 +126,7 @@ body {
 
 .filter-field select:focus {
   outline: none;
-  border-color: #0078d4;
+  border-color: var(--brand-green);
 }
 
 /* Table */
@@ -125,6 +134,7 @@ body {
 .table-wrap {
   background: #fff;
   border: 1px solid #e5e7eb;
+  border-top: 3px solid var(--brand-green);
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
@@ -164,7 +174,7 @@ body {
 }
 
 .student-tr.expanded {
-  background: #f5f8fc;
+  background: var(--brand-green-tint);
 }
 
 .student-name {
@@ -213,8 +223,8 @@ body {
 }
 
 .status-pill.ok {
-  background: #e6f4ea;
-  color: #1a7431;
+  background: var(--brand-green-tint);
+  color: var(--brand-green);
 }
 
 .course-badge {
@@ -225,8 +235,8 @@ body {
   height: 1.5rem;
   padding: 0 0.4rem;
   border-radius: 999px;
-  background: #eef2f6;
-  color: #374151;
+  background: var(--brand-green-tint);
+  color: var(--brand-green);
   font-size: 0.78rem;
   font-weight: 600;
 }
@@ -289,13 +299,13 @@ body {
 }
 
 .pickup-btn:hover {
-  border-color: #0078d4;
+  border-color: var(--brand-green);
 }
 
 .pickup-btn.picked-up {
-  background: #e6f4ea;
-  border-color: #28a745;
-  color: #1a7431;
+  background: var(--brand-green-tint);
+  border-color: var(--brand-green-light);
+  color: var(--brand-green);
 }
 
 .pickup-btn:disabled {
