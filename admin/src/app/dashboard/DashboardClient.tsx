@@ -255,16 +255,16 @@ export default function DashboardClient({ customToken }: { customToken: string }
                         {needsPickup ? "Needs pickup" : "All set"}
                       </span>
                     </td>
-                    <td>
+                    <td className="col-student">
                       <div className="student-name">
                         {[student.firstName, student.lastName].filter(Boolean).join(" ") || student.email}
                       </div>
                       <div className="student-email">{student.email}</div>
                     </td>
-                    <td className="col-phone">{student.phone || "—"}</td>
-                    <td className="col-meta">{gender || "—"}</td>
-                    <td className="col-meta">{studentType || "—"}</td>
-                    <td>
+                    <td className="col-phone" data-label="Phone">{student.phone || "—"}</td>
+                    <td className="col-meta col-gender" data-label="Gender">{gender || "—"}</td>
+                    <td className="col-meta col-student-type" data-label="Student type">{studentType || "—"}</td>
+                    <td className="col-courses" data-label="Courses">
                       <span className="course-badge">{student.matchingCourses.length}</span>
                     </td>
                     <td className="col-chevron">{isExpanded ? "▾" : "▸"}</td>
@@ -291,13 +291,13 @@ export default function DashboardClient({ customToken }: { customToken: string }
 
                               return (
                                 <tr key={course.id}>
-                                  <td>{course.productName}</td>
-                                  <td>
+                                  <td className="col-course-name" data-label="Course">{course.productName}</td>
+                                  <td className="col-term" data-label="Term">
                                     {course.semester} · {course.academicYear}
                                   </td>
-                                  <td className="col-detail">{detail || "—"}</td>
-                                  <td>{formatDate(course.purchasedOn)}</td>
-                                  <td>
+                                  <td className="col-detail" data-label="Details">{detail || "—"}</td>
+                                  <td className="col-purchased" data-label="Purchased">{formatDate(course.purchasedOn)}</td>
+                                  <td className="col-materials" data-label="Materials">
                                     <button
                                       type="button"
                                       className={course.materialsPickedUp ? "pickup-btn picked-up" : "pickup-btn"}
