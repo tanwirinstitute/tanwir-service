@@ -1,0 +1,160 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAuthorizedUser() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/authorizedUsers/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return isAuthorizedUser() &&
+        get(/databases/$(database)/documents/authorizedUsers/$(request.auth.uid)).data.Role == 'admin';
+    }
+
+    // Allow reading authorizedUsers collection for authenticated users
+    match /authorizedUsers/{userId} {
+      allow read, list: if request.auth != null;
+
+      allow create: if request.auth.uid == userId;
+
+      allow update: if resource.data.studentInfo.email == request.auth.token.email;
+
+      allow delete: if isAdmin() || request.auth.token.email == resource.data.studentInfo.email;
+    }
+
+
+    // Assignments collection rules
+    match /assignments/{assignmentId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+
+      // Attachments subcollection
+      match /attachments/{attachmentId} {
+        allow read: if isAuthorizedUser();
+        allow create, update, delete: if isAdmin();
+      }
+
+      // Questions subcollection
+      match /questions/{questionId} {
+        allow read: if isAuthorizedUser();
+        allow create, update, delete: if isAdmin();
+      }
+
+      // Student answers subcollection
+      match /results/{resultId} {
+       allow read: if isAuthorizedUser();
+        // Only students can create answers
+        allow create: if isAuthorizedUser();
+        // Only admins can grade (update)
+        allow update: if isAdmin();
+        allow delete: if isAdmin();
+      }
+
+      // Discussions subcollection
+      match /discussions/{discussionId} {
+        allow read: if isAuthorizedUser();
+        // Anyone authorized can create discussions
+        allow create: if isAuthorizedUser();
+        // Users can only update/delete their own discussions
+        allow update, delete: if isAuthorizedUser() &&
+          resource.data.UserId == request.auth.uid;
+      }
+    }
+    // Courses collection rules
+    match /courses/{courseId} {
+      // Anyone who is an authorized user can read courses
+      allow read, update: if isAuthorizedUser();
+      // Only admins can create/update/delete courses
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Course enrollments rules
+    match /courseEnrollments/{enrollmentId} {
+      // Users can read enrollments they are part of
+      allow read: if isAuthorizedUser() && (
+        resource.data.UserId == request.auth.uid ||
+        isAdmin()
+      );
+      // Only admins can create/update/delete enrollments
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /scholarships/{scholarshipId} {
+  		allow read, write: if isAuthorizedUser();
+		}
+
+    match /codes/{codeId} {
+      allow read, update, delete: if isAuthorizedUser();
+      allow create: if true;  // Extension writes codes with API key only
+    }
+
+    // Class Sessions - Only admins can create/update/delete
+    match /classSessions/{sessionId} {
+      allow read: if isAuthorizedUser();
+      allow create, update, delete: if isAdmin();
+    }
+    // Programs collection - Admin read access
+    match /programs/{programId} {
+      allow read: if isAdmin();
+      allow write: if false; // Programs are created externally, no write access needed
+    }
+
+    // Attendance Records
+    match /attendance/{attendanceId} {
+      allow read: if isAuthorizedUser();
+
+      // Admins can do everything
+      allow create, update, delete: if isAdmin();
+
+      // Authorized users can create their own attendance when session is active
+      allow create: if isAuthorizedUser() &&
+                      request.auth.uid == request.resource.data.StudentId &&
+                      request.resource.data.MarkedBy == request.auth.uid;
+    }
+
+    // --- Squarespace course-sync admin dashboard (admin/) ---
+    // Read/write on students and their courses subcollection, gated by the
+    // `admin` custom claim minted server-side in
+    // admin/src/server/customToken.ts, only ever after the caller already
+    // passed the dashboard's shared-secret gate
+    // (admin/src/server/adminAuth.ts). Distinct from isAdmin() above, which
+    // is a different system (authorizedUsers.Role == 'admin') unrelated to
+    // this dashboard.
+    function isDashboardAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    match /students/{studentId} {
+      allow read, write: if isDashboardAdmin();
+    }
+
+    // The dashboard runs collectionGroup(db, "courses") to load every
+    // student's courses in one live query. A rule scoped to the literal
+    // nested path (/students/{id}/courses/{id}) only governs direct
+    // subcollection access — collection-group queries need a recursive
+    // wildcard rule to be permitted at all. Two attempts at restricting this
+    // to just students/* by inspecting the wildcard-captured `path` (list
+    // indexing, then regex .matches()) both silently denied the entire
+    // query instead of just filtering it — collection-group list rules seem
+    // to require the condition be independent of path segment inspection to
+    // evaluate at all. Falling back to a plain admin-claim grant on any
+    // `courses` collection: the admin-claim token is only ever minted by
+    // our own trusted server code and handed out to whoever already holds
+    // ADMIN_TOKEN, and the dashboard's own client code never constructs a
+    // reference to the top-level courses catalog — so the actual exposure
+    // this adds is narrow (a trusted admin hand-crafting raw SDK calls).
+    match /{path=**}/courses/{courseId} {
+      allow read, write: if isDashboardAdmin();
+    }
+
+    // Default deny for all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
