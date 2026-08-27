@@ -1,0 +1,43 @@
+# Cron trigger for the admin app's Squarespace course sync. The endpoint is
+# idempotent (cursor + lineItemId dedupe, see admin/README.md), so overlapping
+# or retried runs are safe.
+name: Sync Squarespace courses
+
+on:
+  schedule:
+    # Every 30 minutes. GitHub cron is best-effort and may run late; the sync
+    # window is cursor-based, so late runs never miss orders.
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "Optional ISO timestamp to backfill from (overrides the persisted cursor)"
+        required: false
+        type: string
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call sync endpoint
+        env:
+          SYNC_API_TOKEN: ${{ secrets.SYNC_API_TOKEN }}
+          SINCE: ${{ inputs.since }}
+        run: |
+          if [ -z "$SYNC_API_TOKEN" ]; then
+            echo "SYNC_API_TOKEN repository secret is not set" >&2
+            exit 1
+          fi
+
+          if [ -n "$SINCE" ]; then
+            body="{\"since\": \"$SINCE\"}"
+          else
+            body="{}"
+          fi
+
+          curl --silent --show-error --fail-with-body \
+            --retry 3 --retry-all-errors --max-time 300 \
+            -X POST "https://admin.tanwir.institute/api/sync-courses" \
+            -H "Authorization: Bearer $SYNC_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$body"
