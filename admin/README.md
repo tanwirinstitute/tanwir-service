@@ -31,7 +31,7 @@ curl -X POST http://localhost:3003/api/sync-courses \
   -H "Authorization: Bearer $SYNC_API_TOKEN"
 ```
 
-In production, point an external cron trigger (e.g. a Render Cron Job) at this endpoint on whatever interval you want orders picked up.
+In production, a GitHub Actions cron (`.github/workflows/sync-courses.yml`, repo root) calls `https://admin.tanwir.institute/api/sync-courses` every 30 minutes. It needs a `SYNC_API_TOKEN` **repository secret** set in GitHub (Settings > Secrets and variables > Actions) matching the deployed app's env var. The workflow can also be run manually from the Actions tab, with an optional `since` timestamp for backfills.
 
 ## Admin dashboard
 
