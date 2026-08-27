@@ -302,3 +302,159 @@ body {
   opacity: 0.6;
   cursor: default;
 }
+
+/* Mobile */
+
+@media (max-width: 700px) {
+  .dashboard-shell {
+    padding: 1rem 0.75rem 3rem;
+  }
+
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .kpi-chips {
+    width: 100%;
+  }
+
+  .kpi-chip {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-input,
+  .filter-field select {
+    /* 16px prevents iOS Safari from auto-zooming on focus; flex reset
+       avoids inheriting the desktop flex-basis, which becomes a *height*
+       once the bar switches to a column direction above. */
+    font-size: 16px;
+    flex: 0 0 auto;
+    width: 100%;
+  }
+
+  /* Main table becomes a stack of cards: header row hidden, and each row
+     reflows as a small flexbox so status/name/chevron share a line and
+     the remaining fields wrap into a two-column meta grid below. */
+  .crm-table thead {
+    display: none;
+  }
+
+  .crm-table,
+  .crm-table tbody,
+  .course-detail-row td {
+    display: block;
+    width: 100%;
+  }
+
+  .student-tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.2rem 0.75rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #eceef1;
+  }
+
+  .student-tr > td {
+    display: block;
+    padding: 0.15rem 0;
+    border-bottom: none;
+  }
+
+  .student-tr .col-status {
+    order: 1;
+    flex: 0 0 auto;
+    width: auto;
+    margin-top: 0.15rem;
+  }
+
+  .student-tr .col-student {
+    order: 2;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .student-tr .col-chevron {
+    order: 3;
+    flex: 0 0 auto;
+    width: auto;
+  }
+
+  .student-tr .col-phone,
+  .student-tr .col-meta,
+  .student-tr .col-courses {
+    order: 4;
+    flex: 1 1 45%;
+  }
+
+  .col-phone,
+  .col-meta,
+  .col-courses {
+    font-size: 0.8rem;
+    color: #4b5563;
+  }
+
+  .col-phone::before,
+  .col-meta::before,
+  .col-courses::before {
+    content: attr(data-label) ": ";
+    font-weight: 600;
+    color: #9ca3af;
+  }
+
+  .course-badge {
+    margin-left: 0.2rem;
+  }
+
+  /* Nested course table gets the same card treatment. */
+  .course-detail-row td {
+    padding: 0.25rem 0;
+  }
+
+  .course-table thead {
+    display: none;
+  }
+
+  .course-table,
+  .course-table tbody,
+  .course-table tr,
+  .course-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .course-table tr {
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid #eceef1;
+  }
+
+  .course-table tr:first-child {
+    border-top: 1px solid #eceef1;
+  }
+
+  .course-table td {
+    padding: 0.15rem 0;
+  }
+
+  .course-table td[data-label]::before {
+    content: attr(data-label) ": ";
+    font-weight: 600;
+    color: #9ca3af;
+  }
+
+  .col-materials {
+    margin-top: 0.35rem;
+  }
+
+  .pickup-btn {
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+  }
+}
