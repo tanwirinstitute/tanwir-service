@@ -1,6 +1,6 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { getDb } from "@/lib/firebase";
-import { fetchOrders } from "@/lib/squarespace";
+import { fetchOrders, fetchProfileByEmail } from "@/lib/squarespace";
 import { deriveTerm } from "./academicTerm";
 import type {
   SquarespaceFormSubmissionField,
@@ -46,11 +46,50 @@ export interface SyncSummary {
   lineItemsSkippedNonCourse: number;
   lineItemsSkippedEvent: number;
   ordersSkippedNoEmail: number;
+  studentsNamedFromProfile: number;
+  studentsNamedFromBilling: number;
   errors: number;
 }
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+interface ResolvedName {
+  firstName: string | null;
+  lastName: string | null;
+  source: "profile" | "billing";
+}
+
+/**
+ * The student's name should come from their Squarespace *account* (the person
+ * who logs in to reach the course), not the order's billing form — that form
+ * is frequently filled in by a parent or whoever's card was used. Falls back
+ * to the billing address only when there's no account profile or the profile
+ * carries no name (guest checkout). `profileCache` dedupes the Profiles API
+ * call across a student's multiple orders within one run.
+ */
+async function resolveStudentName(
+  order: SquarespaceOrder,
+  profileCache: Map<string, Awaited<ReturnType<typeof fetchProfileByEmail>>>
+): Promise<ResolvedName> {
+  const cacheKey = normalizeEmail(order.customerEmail);
+  if (!profileCache.has(cacheKey)) {
+    profileCache.set(cacheKey, await fetchProfileByEmail(order.customerEmail));
+  }
+  const profile = profileCache.get(cacheKey) ?? null;
+
+  const profileFirst = profile?.firstName?.trim() || null;
+  const profileLast = profile?.lastName?.trim() || null;
+  if (profileFirst || profileLast) {
+    return { firstName: profileFirst, lastName: profileLast, source: "profile" };
+  }
+
+  return {
+    firstName: order.billingAddress?.firstName?.trim() || null,
+    lastName: order.billingAddress?.lastName?.trim() || null,
+    source: "billing",
+  };
 }
 
 /**
@@ -197,8 +236,12 @@ export async function runCourseSync(options?: RunCourseSyncOptions): Promise<Syn
     lineItemsSkippedNonCourse: 0,
     lineItemsSkippedEvent: 0,
     ordersSkippedNoEmail: 0,
+    studentsNamedFromProfile: 0,
+    studentsNamedFromBilling: 0,
     errors: 0,
   };
+
+  const profileCache = new Map<string, Awaited<ReturnType<typeof fetchProfileByEmail>>>();
 
   for (const order of orders) {
     const courseTypeLineItems = (order.lineItems ?? []).filter((li) => COURSE_LINE_ITEM_TYPES.has(li.lineItemType));
@@ -223,11 +266,18 @@ export async function runCourseSync(options?: RunCourseSyncOptions): Promise<Syn
       const studentRef = db.collection(STUDENTS_COLLECTION).doc(studentId);
       const studentSnapshot = await studentRef.get();
 
+      const name = await resolveStudentName(order, profileCache);
+      if (name.source === "profile") {
+        summary.studentsNamedFromProfile++;
+      } else {
+        summary.studentsNamedFromBilling++;
+      }
+
       await studentRef.set(
         {
           email: order.customerEmail,
-          firstName: order.billingAddress?.firstName ?? null,
-          lastName: order.billingAddress?.lastName ?? null,
+          firstName: name.firstName,
+          lastName: name.lastName,
           phone: order.billingAddress?.phone || null,
           updatedAt: FieldValue.serverTimestamp(),
           ...(studentSnapshot.exists ? {} : { createdAt: FieldValue.serverTimestamp() }),

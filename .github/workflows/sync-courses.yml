@@ -5,9 +5,15 @@ name: Sync Squarespace courses
 
 on:
   schedule:
-    # Every 30 minutes. GitHub cron is best-effort and may run late; the sync
-    # window is cursor-based, so late runs never miss orders.
-    - cron: "*/30 * * * *"
+    # Target cadence is ~every 30 min. GitHub's scheduled events are
+    # best-effort and get dropped most often at the top of the hour (peak
+    # load), so both entries are offset off :00/:30 and a second, further
+    # offset entry is added as a hedge — if one firing is skipped, the other
+    # still covers that half-hour. Net effect is 4 attempts/hour
+    # (:07 :22 :37 :52); the endpoint is cursor-idempotent so extra runs are
+    # harmless.
+    - cron: "7,37 * * * *"
+    - cron: "22,52 * * * *"
   workflow_dispatch:
     inputs:
       since:

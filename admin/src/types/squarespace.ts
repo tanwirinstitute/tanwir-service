@@ -57,3 +57,31 @@ export interface SquarespaceOrdersResponse {
   result?: SquarespaceOrder[];
   pagination?: SquarespacePagination;
 }
+
+/**
+ * Customer Profiles API shape (inferred from live responses, Aug 2026). This
+ * is the Squarespace *account* holder — the person who logs in to reach the
+ * paywalled course — as opposed to whatever name/phone was typed into an
+ * order's billing form. `hasAccount` is false for guest checkouts that never
+ * created a login; in that case there's no account name to trust and callers
+ * fall back to the order's billing address.
+ */
+export interface SquarespaceProfile {
+  id: string;
+  email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  hasAccount?: boolean;
+  address?: {
+    firstName?: string | null;
+    lastName?: string | null;
+    phone?: string | null;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}
+
+export interface SquarespaceProfilesResponse {
+  profiles?: SquarespaceProfile[];
+  pagination?: SquarespacePagination;
+}
