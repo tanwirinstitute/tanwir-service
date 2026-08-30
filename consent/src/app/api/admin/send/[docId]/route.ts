@@ -28,6 +28,16 @@ export async function POST(
     return NextResponse.json({ status: result.status }, { status: 200 });
   } catch (error) {
     console.error(`Failed to send zakat consent email for doc ${docId}:`, error);
-    return NextResponse.json({ error: "internal_error" }, { status: 500 });
+    // TEMP: surface the real cause in the response while debugging the
+    // production 500. This endpoint is admin-token gated. Revert to the bare
+    // { error: "internal_error" } once resolved.
+    return NextResponse.json(
+      {
+        error: "internal_error",
+        detail: error instanceof Error ? error.message : String(error),
+        name: error instanceof Error ? error.name : undefined,
+      },
+      { status: 500 }
+    );
   }
 }
