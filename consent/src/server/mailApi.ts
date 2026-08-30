@@ -13,7 +13,12 @@ export async function sendZakatConsentEmail(params: SendConsentEmailParams): Pro
     throw new Error("ZAKAT_MAIL_API_URL or ZAKAT_MAIL_API_TOKEN is not set");
   }
 
-  const response = await fetch(`${baseUrl}/send-zakat-consent-email`, {
+  // ZAKAT_MAIL_API_URL is the emailer's origin (https://email.tanwir.institute);
+  // every endpoint on that service is under /api/ (see emailer OpenAPI spec).
+  // Tolerate a trailing slash or an accidental /api suffix in the env value.
+  const endpoint = `${baseUrl.replace(/\/+$/, "").replace(/\/api$/, "")}/api/send-zakat-consent-email`;
+
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

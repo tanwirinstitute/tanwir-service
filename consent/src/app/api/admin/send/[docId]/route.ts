@@ -31,11 +31,21 @@ export async function POST(
     // TEMP: surface the real cause in the response while debugging the
     // production 500. This endpoint is admin-token gated. Revert to the bare
     // { error: "internal_error" } once resolved.
+    // `fetch failed` is a wrapper TypeError — the real reason (ENOTFOUND,
+    // ECONNREFUSED, cert error, ...) lives on error.cause, so dig it out too.
+    const cause = (error as { cause?: unknown })?.cause;
     return NextResponse.json(
       {
         error: "internal_error",
         detail: error instanceof Error ? error.message : String(error),
         name: error instanceof Error ? error.name : undefined,
+        cause:
+          cause instanceof Error
+            ? { message: cause.message, name: cause.name, code: (cause as { code?: string }).code }
+            : cause
+              ? String(cause)
+              : undefined,
+        mailApiUrl: process.env.ZAKAT_MAIL_API_URL ?? null,
       },
       { status: 500 }
     );
