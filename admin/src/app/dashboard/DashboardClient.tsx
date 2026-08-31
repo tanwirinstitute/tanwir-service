@@ -1,10 +1,13 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { signInWithCustomToken } from "firebase/auth";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, collectionGroup, doc, onSnapshot, serverTimestamp, Timestamp, updateDoc } from "firebase/firestore";
 import { getClientAuth, getClientDb } from "@/lib/firebaseClient";
+import SignOutButton from "../SignOutButton";
 import { ACTIVE_REGISTRATION_ACADEMIC_YEAR, isAcademicYearAtOrAfter } from "@/server/academicTerm";
 import type { CourseRecord, StudentRecord } from "@/types/student";
 
@@ -223,7 +226,8 @@ function DashboardSkeleton() {
   );
 }
 
-export default function DashboardClient({ customToken }: { customToken: string }) {
+export default function DashboardClient() {
+  const router = useRouter();
   const [signedIn, setSignedIn] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [students, setStudents] = useState<Map<string, StudentRecord>>(new Map());
@@ -234,21 +238,49 @@ export default function DashboardClient({ customToken }: { customToken: string }
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [pending, setPending] = useState<Set<string>>(new Set());
 
+  const signOutAndRedirect = useCallback(async () => {
+    // Best-effort clear of the httpOnly cookie, then the client session.
+    await fetch("/api/auth/session", { method: "DELETE" }).catch(() => {});
+    await signOut(getClientAuth()).catch(() => {});
+    router.replace("/login");
+  }, [router]);
+
   useEffect(() => {
-    signInWithCustomToken(getClientAuth(), customToken)
-      .then(() => setSignedIn(true))
-      .catch((error) => setAuthError((error as Error).message));
-  }, [customToken]);
+    // The /login page establishes the client Firebase Auth session (and the
+    // httpOnly cookie the server page checks). Here we just wait for that
+    // session to rehydrate; if it's missing, go back to /login.
+    return onAuthStateChanged(getClientAuth(), (user) => {
+      if (user) {
+        setSignedIn(true);
+      } else {
+        router.replace("/login?next=/dashboard");
+      }
+    });
+  }, [router]);
 
   useEffect(() => {
     if (!signedIn) return;
     const db = getClientDb();
 
-    const unsubStudents = onSnapshot(collection(db, "students"), (snapshot) => {
-      const next = new Map<string, StudentRecord>();
-      snapshot.forEach((docSnap) => next.set(docSnap.id, docSnap.data() as StudentRecord));
-      setStudents(next);
-    });
+    // A permission-denied here means the user was removed from
+    // authorizedUsers after signing in — force a fresh login.
+    const onError = (error: { code?: string; message: string }) => {
+      if (error.code === "permission-denied") {
+        void signOutAndRedirect();
+      } else {
+        setAuthError(error.message);
+      }
+    };
+
+    const unsubStudents = onSnapshot(
+      collection(db, "students"),
+      (snapshot) => {
+        const next = new Map<string, StudentRecord>();
+        snapshot.forEach((docSnap) => next.set(docSnap.id, docSnap.data() as StudentRecord));
+        setStudents(next);
+      },
+      onError
+    );
 
     // collectionGroup matches by collection name across the whole database —
     // this Firestore project also has an unrelated top-level "courses"
@@ -256,23 +288,27 @@ export default function DashboardClient({ customToken }: { customToken: string }
     // under students/. Firestore security rules already restrict reads to
     // students/{id}/courses/{id}, so those unrelated docs won't come through
     // anyway; this is defensive.
-    const unsubCourses = onSnapshot(collectionGroup(db, "courses"), (snapshot) => {
-      const next = new Map<string, CourseWithId[]>();
-      snapshot.forEach((docSnap) => {
-        if (!docSnap.ref.path.startsWith("students/")) return;
-        const studentId = docSnap.ref.parent.parent!.id;
-        const list = next.get(studentId) ?? [];
-        list.push({ id: docSnap.id, ...(docSnap.data() as CourseRecord) });
-        next.set(studentId, list);
-      });
-      setCourses(next);
-    });
+    const unsubCourses = onSnapshot(
+      collectionGroup(db, "courses"),
+      (snapshot) => {
+        const next = new Map<string, CourseWithId[]>();
+        snapshot.forEach((docSnap) => {
+          if (!docSnap.ref.path.startsWith("students/")) return;
+          const studentId = docSnap.ref.parent.parent!.id;
+          const list = next.get(studentId) ?? [];
+          list.push({ id: docSnap.id, ...(docSnap.data() as CourseRecord) });
+          next.set(studentId, list);
+        });
+        setCourses(next);
+      },
+      onError
+    );
 
     return () => {
       unsubStudents();
       unsubCourses();
     };
-  }, [signedIn]);
+  }, [signedIn, signOutAndRedirect]);
 
   const yearOptions = useMemo(() => {
     const years = new Set<string>();
@@ -344,8 +380,11 @@ export default function DashboardClient({ customToken }: { customToken: string }
         <Image src="/logo.webp" alt="Tanwir Institute" width={37} height={40} className="brand-logo skel-logo" priority />
         <div className="state-card state-card-error">
           <IconAlertTriangle className="state-icon" />
-          <h2>Couldn&apos;t sign in</h2>
+          <h2>Couldn&apos;t load the dashboard</h2>
           <p>{authError}</p>
+          <button type="button" className="login-btn" style={{ marginTop: "1rem" }} onClick={signOutAndRedirect}>
+            Back to sign in
+          </button>
         </div>
       </main>
     );
@@ -360,13 +399,14 @@ export default function DashboardClient({ customToken }: { customToken: string }
   return (
     <main className="dashboard-shell">
       <header className="dashboard-header">
-        <div className="brand">
+        <Link href="/" className="brand brand-link">
           <Image src="/logo.webp" alt="Tanwir Institute" width={37} height={40} className="brand-logo" priority />
           <div>
             <h1>Registrations</h1>
             <p className="dashboard-subtitle">Track course registrations and materials pickup</p>
           </div>
-        </div>
+        </Link>
+        <SignOutButton />
       </header>
 
       <div className="stat-grid">

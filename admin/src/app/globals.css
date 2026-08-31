@@ -818,9 +818,11 @@ button {
 
   .crm-table,
   .crm-table tbody,
+  .course-detail-row,
   .course-detail-row td {
     display: block;
     width: 100%;
+    max-width: 100%;
   }
 
   .student-tr {
@@ -909,6 +911,7 @@ button {
   .course-table td {
     display: block;
     width: 100%;
+    max-width: 100%;
   }
 
   .course-table tr {
@@ -922,6 +925,8 @@ button {
 
   .course-table td {
     padding: 0.15rem 0;
+    /* long product names / variant strings must wrap, not widen the card */
+    overflow-wrap: anywhere;
   }
 
   .course-table td[data-label]::before {
@@ -949,4 +954,162 @@ button {
   .stat-label {
     white-space: normal;
   }
+}
+
+/* --- Login --- */
+
+.login-shell {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 2.25rem 1.75rem;
+  box-shadow: var(--shadow-md);
+}
+
+.login-card .brand-logo {
+  margin: 0 auto 1rem;
+}
+
+.login-card h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.15rem;
+  color: var(--brand-ink);
+}
+
+.login-card p {
+  margin: 0 0 1.5rem;
+  font-size: 0.875rem;
+  color: var(--gray-500);
+}
+
+.login-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.7rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--brand-ink);
+  background: #fff;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.login-btn:hover:not(:disabled) {
+  background: var(--gray-50);
+  border-color: var(--gray-400);
+}
+
+.login-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.login-error {
+  margin: 1rem 0 0;
+  font-size: 0.83rem;
+  color: var(--danger-text);
+}
+
+.signout-btn {
+  align-self: center;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: var(--gray-600);
+  background: #fff;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.signout-btn:hover {
+  background: var(--gray-50);
+  border-color: var(--gray-400);
+}
+
+/* --- Home hub --- */
+
+.home-shell {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 3rem;
+}
+
+.home-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+.home-header h1 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--brand-ink);
+}
+
+.home-subtitle {
+  margin: 0.1rem 0 0;
+  font-size: 0.82rem;
+  color: var(--gray-500);
+}
+
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.9rem;
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 1.1rem 1.15rem;
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  text-decoration: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
+.home-card:hover {
+  border-color: var(--brand-green-light);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.home-card-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--brand-ink);
+}
+
+.home-card-desc {
+  font-size: 0.82rem;
+  color: var(--gray-500);
+}
+
+.brand-link {
+  text-decoration: none;
+  color: inherit;
 }
