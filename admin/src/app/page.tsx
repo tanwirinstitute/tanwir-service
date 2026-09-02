@@ -17,6 +17,11 @@ const TOOLS: { href: string; title: string; description: string }[] = [
     title: "Registrations",
     description: "Course registrations and materials pickup",
   },
+  {
+    href: "/email",
+    title: "Email Console",
+    description: "Compose and send email to students",
+  },
 ];
 
 export default async function HomePage() {

@@ -23,7 +23,8 @@ Every `POST /api/send-*` endpoint requires `Authorization: Bearer <MAIL_API_TOKE
 
 - `POST /api/send-zakat-consent-email` — `{ recipientEmail, studentName, programName, consentLink }`. Called by the consent app.
 - `POST /api/send-financial-aid-email` — `{ recipientEmail, studentName, discountPercentage, discountCode, programName, additionalDetails? }`
-- `POST /api/send-custom-email` — `{ recipients: [{ email, name? }], subject, htmlContent, senderName?, senderEmail? }`
+- `POST /api/send-custom-email` — `{ recipients: [{ email, name? }], subject, htmlContent, senderName?, senderEmail? }`. All recipients share one Gmail send (bundled into a single message's `To:` header) — fine for a handful of known recipients, wrong for a mass blast (every recipient would see every other recipient's address).
+- `POST /api/send-blast-email` — `{ recipients: [{ email, name? }] (max 25), subject, htmlContent, senderName?, senderEmail? }`. Each recipient gets their own individual Gmail send; `subject`/`htmlContent` may contain a `{{name}}` token, substituted per-recipient. Used by admin's Email Console for audience blasts — callers with a larger audience split it into multiple ≤25 batches and call this once per batch. Returns `{ success, sent, failed, results: [{ email, success, error? }] }`.
 - `POST /api/send-prophetic-guidance-welcome` — `{ recipients: [{ email, name? }], classDate?, year1Year2Time?, graduatesJourneyTime?, senderName?, senderEmail? }`
 - `POST /api/send-associates-program-welcome` — `{ recipients: [{ email, name? }], senderName?, senderEmail? }`
 - `GET /api/health` — `{ status: "ok" }`

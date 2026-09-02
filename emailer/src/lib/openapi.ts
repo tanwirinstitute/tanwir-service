@@ -24,6 +24,26 @@ const errorResult = {
   },
 } as const;
 
+const blastResult = {
+  type: "object",
+  properties: {
+    success: { type: "boolean", example: true },
+    sent: { type: "integer" },
+    failed: { type: "integer" },
+    results: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          email: { type: "string", format: "email" },
+          success: { type: "boolean" },
+          error: { type: "string" },
+        },
+      },
+    },
+  },
+} as const;
+
 export const openApiSpec = {
   openapi: "3.0.3",
   info: {
@@ -43,7 +63,7 @@ export const openApiSpec = {
         description: "MAIL_API_TOKEN shared secret",
       },
     },
-    schemas: { recipient, sendResult, errorResult },
+    schemas: { recipient, sendResult, errorResult, blastResult },
   },
   security: [{ bearerAuth: [] }],
   paths: {
@@ -143,6 +163,36 @@ export const openApiSpec = {
           "200": { description: "Sent to all recipients", content: { "application/json": { schema: sendResult } } },
           "207": { description: "Some recipients failed", content: { "application/json": { schema: sendResult } } },
           "400": { description: "Missing or invalid fields", content: { "application/json": { schema: errorResult } } },
+          "401": { description: "Missing/invalid bearer token", content: { "application/json": { schema: errorResult } } },
+        },
+      },
+    },
+    "/api/send-blast-email": {
+      post: {
+        summary: "Send a personalized email individually to each of up to 25 recipients",
+        description:
+          "Unlike send-custom-email, each recipient gets their own Gmail send (never bundled into one message's To: header), so recipients never see each other's address. subject and htmlContent may contain a {{name}} token, replaced per-recipient with that recipient's name (falling back to \"Student\"). Callers with a larger audience must split it into multiple batches of at most 25 and call this once per batch.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["recipients", "subject", "htmlContent"],
+                properties: {
+                  recipients: { type: "array", items: recipient, minItems: 1, maxItems: 25 },
+                  subject: { type: "string" },
+                  htmlContent: { type: "string" },
+                  senderName: { type: "string" },
+                  senderEmail: { type: "string", format: "email" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Batch processed (see per-recipient results for individual failures)", content: { "application/json": { schema: blastResult } } },
+          "400": { description: "Missing/invalid fields, or more than 25 recipients", content: { "application/json": { schema: errorResult } } },
           "401": { description: "Missing/invalid bearer token", content: { "application/json": { schema: errorResult } } },
         },
       },
