@@ -58,7 +58,7 @@ export const openApiSpec = {
       post: {
         summary: "Generate a discount code and create it as a live Squarespace promo code",
         description:
-          "Generates a code in the form {TYPE}-{PROGRAM}-{PERCENT}-{YEAR}-{SUFFIX} (e.g. FAID-YP-75-26-2B3E) and creates a matching site-wide, percentage-off, one-use-per-customer discount via Squarespace's Commerce Discounts API.",
+          "Generates a code in the form {TYPE}-{PROGRAM}-{PERCENT}-{YEAR}-{SUFFIX} (e.g. FAID-YP-75-26-2B3E) and creates a matching site-wide, percentage-off, one-use-per-customer discount via Squarespace's Commerce Discounts API. Applies to subscription products and every payment-plan installment by default (not just one-time, full-price checkouts).",
         requestBody: {
           required: true,
           content: {

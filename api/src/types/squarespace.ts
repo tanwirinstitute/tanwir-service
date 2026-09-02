@@ -34,6 +34,16 @@ export interface SquarespacePromoCodeTrigger {
   promoCode: string;
 }
 
+export interface SquarespacePaymentPlanOptions {
+  /** Defaults to NONE when omitted from a create/update request. */
+  type: "NONE" | "ALL_PAYMENTS";
+}
+
+export interface SquarespaceSubscriptionOptions {
+  /** Defaults to EXCLUDED when omitted from a create/update request. */
+  type: "EXCLUDED" | "ALL_PAYMENTS" | "LIMITED_PAYMENTS";
+}
+
 export interface SquarespaceCreateDiscountRequest {
   name: string;
   criteria: SquarespaceAnyOrderCriteria;
@@ -44,6 +54,8 @@ export interface SquarespaceCreateDiscountRequest {
   isLimitedUses?: boolean;
   maxUsesAllowed?: number;
   isOncePerCustomer?: boolean;
+  paymentPlanOptions?: SquarespacePaymentPlanOptions;
+  subscriptionOptions?: SquarespaceSubscriptionOptions;
 }
 
 export interface SquarespaceDiscount {

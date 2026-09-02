@@ -4,7 +4,7 @@ Internal APIs for Tanwir Institute. Deployed at `api.tanwir.institute`, reached 
 
 ## Squarespace discount codes
 
-`POST /api/discount-codes` generates a code and creates a matching live, redeemable promo code via Squarespace's Commerce Discounts API (site-wide, percentage-off, one use per customer).
+`POST /api/discount-codes` generates a code and creates a matching live, redeemable promo code via Squarespace's Commerce Discounts API (site-wide, percentage-off, one use per customer). It applies to subscription products and every payment-plan installment by default (`subscriptionOptions`/`paymentPlanOptions` both `ALL_PAYMENTS`), not just one-time, full-price checkouts — a financial aid award shouldn't only cover the first installment.
 
 Request body:
 

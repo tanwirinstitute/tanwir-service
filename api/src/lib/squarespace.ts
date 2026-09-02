@@ -27,6 +27,10 @@ export interface CreateDiscountParams {
   validTo?: Date;
   isOncePerCustomer?: boolean;
   maxUsesAllowed?: number;
+  /** Defaults to ALL_PAYMENTS: financial aid should discount every installment, not just the first. */
+  paymentPlanOptions?: "NONE" | "ALL_PAYMENTS";
+  /** Defaults to ALL_PAYMENTS: financial aid should cover subscription products too, not just one-time purchases. */
+  subscriptionOptions?: "EXCLUDED" | "ALL_PAYMENTS" | "LIMITED_PAYMENTS";
 }
 
 /**
@@ -47,6 +51,8 @@ export async function createDiscount(params: CreateDiscountParams): Promise<Squa
     trigger: { type: "CODE", promoCode: params.promoCode },
     validFrom: params.validFrom.toISOString(),
     isOncePerCustomer: params.isOncePerCustomer ?? true,
+    paymentPlanOptions: { type: params.paymentPlanOptions ?? "ALL_PAYMENTS" },
+    subscriptionOptions: { type: params.subscriptionOptions ?? "ALL_PAYMENTS" },
   };
 
   if (params.validTo) {
