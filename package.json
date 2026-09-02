@@ -5,7 +5,7 @@
   "description": "Subdomain routing gateway for tanwir.institute — proxies each subdomain to its own app.",
   "scripts": {
     "dev": "next dev --port 3000",
-    "dev:all": "concurrently -n gateway,consent,emailer,admin,tlp -c blue,green,yellow,magenta,cyan \"next dev --port 3000\" \"npm run dev --prefix consent\" \"npm run dev --prefix emailer\" \"npm run dev --prefix admin\" \"npm run dev --prefix tlp\"",
+    "dev:all": "concurrently -n gateway,consent,emailer,admin,tlp,api -c blue,green,yellow,magenta,cyan,red \"next dev --port 3000\" \"npm run dev --prefix consent\" \"npm run dev --prefix emailer\" \"npm run dev --prefix admin\" \"npm run dev --prefix tlp\" \"npm run dev --prefix api\"",
     "build": "next build",
     "start": "next start --port 3000",
     "lint": "eslint"

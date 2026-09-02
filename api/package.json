@@ -1,0 +1,25 @@
+{
+  "name": "tanwir-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Next.js app exposing internal APIs for Tanwir Institute (e.g. Squarespace discount code creation).",
+  "scripts": {
+    "dev": "next dev --port 3005",
+    "build": "next build",
+    "start": "next start --port 3005",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "next": "16.2.12",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.12",
+    "typescript": "^5"
+  }
+}
