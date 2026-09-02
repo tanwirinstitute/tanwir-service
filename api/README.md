@@ -63,6 +63,10 @@ curl -X POST http://localhost:3005/api/discount-codes \
   -d '{"programCode": "YP", "discountPercentage": 75}'
 ```
 
+## API docs
+
+Swagger UI is served at `/docs` (reads the spec from `/openapi.json`).
+
 ## Endpoints
 
 - `POST /api/discount-codes` — see above. Requires `Authorization: Bearer <SYNC_API_TOKEN>`.
