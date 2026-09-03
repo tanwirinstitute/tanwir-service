@@ -31,7 +31,7 @@ interface Progress {
 
 interface Audience {
   type: AudienceType;
-  productId?: string;
+  productName?: string;
   academicYear?: string;
   semester?: string;
 }
@@ -48,17 +48,15 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 /**
- * Squarespace recreates some recurring products under a brand-new productId
- * each year, so two courses can share an identical name but be different
- * years entirely — show every term a course has records under right in its
- * label so that's never ambiguous.
+ * Courses are grouped by (name, academic year) — see recipients.ts — so the
+ * year is always right in the label. Also surfaces when a group spans more
+ * than one semester (e.g. a course synced under both a "Full Year" and a
+ * separate "Fall" Squarespace product for the same year), since selecting
+ * this entry targets all of them together.
  */
 function courseLabel(course: CourseCatalogEntry): string {
-  if (course.terms.length === 0) return course.productName;
-  const labels = course.terms.map((t) => `${t.semester} ${t.academicYear}`);
-  const shown = labels.slice(0, 2).join(", ");
-  const suffix = labels.length > 2 ? ` +${labels.length - 2} more` : "";
-  return `${course.productName} — ${shown}${suffix}`;
+  const semesters = course.semesters.length > 0 ? ` (${course.semesters.join(", ")})` : "";
+  return `${course.productName} — ${course.academicYear}${semesters}`;
 }
 
 interface Props {
@@ -88,20 +86,28 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
 
   const hasAudienceSelection = audienceType === "all" || Boolean(courseId) || Boolean(sectionKey);
 
+  // Course and term are mutually exclusive, not composed: a course selection
+  // already pins a specific (name, year) group on its own (see
+  // recipients.ts), so layering an independently-picked term on top could
+  // silently contradict it (e.g. a course's own 2026-2027 vs a term select
+  // still showing 2025-2026) and resolve to nothing. Picking one clears the
+  // other — see the onChange handlers below.
   const buildAudience = useCallback((): Audience => {
     if (audienceType === "all") return { type: "all" };
+    if (courseId) {
+      const course = courses.find((c) => c.key === courseId);
+      return { type: "course", productName: course?.productName, academicYear: course?.academicYear };
+    }
     const [academicYear, semester] = sectionKey ? sectionKey.split("__") : [undefined, undefined];
-    return { type: "course", productId: courseId || undefined, academicYear, semester };
-  }, [audienceType, courseId, sectionKey]);
+    return { type: "course", academicYear, semester };
+  }, [audienceType, courseId, courses, sectionKey]);
 
   const audienceLabel = useMemo(() => {
     if (audienceType === "all") return "All students";
-    const course = courses.find((c) => c.productId === courseId);
+    const course = courses.find((c) => c.key === courseId);
+    if (course) return `${course.productName} — ${course.academicYear}`;
     const [academicYear, semester] = sectionKey ? sectionKey.split("__") : [undefined, undefined];
-    const parts: string[] = [];
-    if (course) parts.push(course.productName);
-    if (academicYear && semester) parts.push(`${semester} ${academicYear}`);
-    return parts.length > 0 ? parts.join(" — ") : "(choose a course or term)";
+    return academicYear && semester ? `${semester} ${academicYear}` : "(choose a course or term)";
   }, [audienceType, courseId, courses, sectionKey]);
 
   const canCompose = subject.trim().length > 0 && bodyHtml.trim().length > 0;
@@ -287,10 +293,17 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
                   <label className="ec-label" htmlFor="ec-course">
                     Course
                   </label>
-                  <select id="ec-course" value={courseId} onChange={(e) => setCourseId(e.target.value)}>
+                  <select
+                    id="ec-course"
+                    value={courseId}
+                    onChange={(e) => {
+                      setCourseId(e.target.value);
+                      if (e.target.value) setSectionKey("");
+                    }}
+                  >
                     <option value="">All courses</option>
                     {courses.map((c) => (
-                      <option key={c.productId} value={c.productId}>
+                      <option key={c.key} value={c.key}>
                         {courseLabel(c)}
                       </option>
                     ))}
@@ -301,7 +314,15 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
                   <label className="ec-label" htmlFor="ec-section">
                     Term
                   </label>
-                  <select id="ec-section" value={sectionKey} onChange={(e) => setSectionKey(e.target.value)}>
+                  <select
+                    id="ec-section"
+                    value={sectionKey}
+                    disabled={Boolean(courseId)}
+                    onChange={(e) => {
+                      setSectionKey(e.target.value);
+                      if (e.target.value) setCourseId("");
+                    }}
+                  >
                     <option value="">All terms</option>
                     {sections.map((s) => {
                       const key = `${s.academicYear}__${s.semester}`;
@@ -312,7 +333,7 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
                       );
                     })}
                   </select>
-                  <p className="ec-hint">Pick a course, a term, or both — leaving both on &quot;All&quot; targets every student.</p>
+                  <p className="ec-hint">Pick a course (a specific year) or a term (any course, that semester) — picking one clears the other.</p>
                 </div>
               </>
             )}

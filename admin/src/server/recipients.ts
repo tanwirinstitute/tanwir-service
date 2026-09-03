@@ -15,22 +15,25 @@ export interface SectionCatalogEntry {
 }
 
 export interface CourseCatalogEntry {
-  productId: string;
+  /** `${productName}__${academicYear}` — stable key for the dropdown's value/React key. */
+  key: string;
   productName: string;
+  academicYear: string;
   /**
-   * Every distinct academicYear/semester this productId has records under.
-   * Squarespace recreates some recurring products as a brand-new productId
-   * each year (confirmed in courseSync.ts's notes), so two catalog entries
-   * can share an identical productName but be different years entirely —
-   * this is what lets the UI show the year(s) right next to the course name
-   * instead of leaving two identically-labeled options.
+   * Distinct semesters this (name, year) group has records under. Some
+   * courses get synced under more than one Squarespace productId within
+   * the same year — e.g. a "Full Year" enrollment product and a separate
+   * "Fall"-only one for the same course — which previously showed as
+   * separate, confusingly-identical dropdown entries. Grouping by name+year
+   * instead of productId collapses those into one entry; this field is what
+   * still surfaces that a group actually covers more than one semester.
    */
-  terms: SectionCatalogEntry[];
+  semesters: string[];
 }
 
 export type Audience =
   | { type: "all" }
-  | { type: "course"; productId?: string; academicYear?: string; semester?: string };
+  | { type: "course"; productName?: string; academicYear?: string; semester?: string };
 
 function studentName(data: Partial<StudentRecord>): string | null {
   const first = data.firstName?.trim();
@@ -38,35 +41,32 @@ function studentName(data: Partial<StudentRecord>): string | null {
   return [first, last].filter(Boolean).join(" ") || null;
 }
 
-/** Distinct courses across every student, each with the term(s) it has records under, for the audience picker. */
+/** Distinct (course name, academic year) pairs across every student, for the audience picker's course dropdown. */
 export async function getCourseCatalog(): Promise<CourseCatalogEntry[]> {
   const db = getDb();
-  const snapshot = await db.collectionGroup("courses").select("productId", "productName", "academicYear", "semester").get();
+  const snapshot = await db.collectionGroup("courses").select("productName", "academicYear", "semester").get();
 
-  const byId = new Map<string, { productName: string; terms: Map<string, SectionCatalogEntry> }>();
+  const byKey = new Map<string, { productName: string; academicYear: string; semesters: Set<string> }>();
   for (const doc of snapshot.docs) {
-    const data = doc.data() as { productId?: string; productName?: string; academicYear?: string; semester?: string };
-    if (!data.productId) continue;
+    const data = doc.data() as { productName?: string; academicYear?: string; semester?: string };
+    const productName = data.productName?.trim();
+    if (!productName || !data.academicYear) continue;
 
-    let entry = byId.get(data.productId);
+    const key = `${productName}__${data.academicYear}`;
+    let entry = byKey.get(key);
     if (!entry) {
-      entry = { productName: data.productName || data.productId, terms: new Map() };
-      byId.set(data.productId, entry);
+      entry = { productName, academicYear: data.academicYear, semesters: new Set() };
+      byKey.set(key, entry);
     }
-
-    if (data.academicYear && data.semester) {
-      const key = `${data.academicYear}__${data.semester}`;
-      if (!entry.terms.has(key)) {
-        entry.terms.set(key, { academicYear: data.academicYear, semester: data.semester });
-      }
-    }
+    if (data.semester) entry.semesters.add(data.semester);
   }
 
-  return Array.from(byId, ([productId, { productName, terms }]) => ({
-    productId,
+  return Array.from(byKey, ([key, { productName, academicYear, semesters }]) => ({
+    key,
     productName,
-    terms: Array.from(terms.values()).sort((a, b) => b.academicYear.localeCompare(a.academicYear) || a.semester.localeCompare(b.semester)),
-  })).sort((a, b) => a.productName.localeCompare(b.productName));
+    academicYear,
+    semesters: Array.from(semesters).sort(),
+  })).sort((a, b) => a.productName.localeCompare(b.productName) || b.academicYear.localeCompare(a.academicYear));
 }
 
 /** Distinct academicYear/semester pairs across every student, for the "any course, just this term" filter. */
@@ -103,12 +103,12 @@ async function studentRefsToRecipients(studentRefs: FirebaseFirestore.DocumentRe
 /**
  * Resolves an audience to a deduplicated recipient list. "all" reads the
  * students collection directly. "course" queries the courses collection
- * group, filtered by whichever of productId/(academicYear+semester) is
- * present — either alone, or both together for "this course, this specific
- * year" (a student can still have multiple matching course records, e.g.
- * a payment-plan course synced as several line items — dedup by student doc
- * path before fetching names). Bypasses firestore.rules entirely via
- * firebase-admin, same as courseSync.ts.
+ * group, filtered by whichever of productName/academicYear/semester is
+ * present (a student can still have multiple matching course records, e.g.
+ * a payment-plan course synced as several line items, or a course spanning
+ * more than one Squarespace productId — dedup by student doc path before
+ * fetching names). Bypasses firestore.rules entirely via firebase-admin,
+ * same as courseSync.ts.
  */
 export async function resolveRecipients(audience: Audience): Promise<Recipient[]> {
   const db = getDb();
@@ -122,11 +122,14 @@ export async function resolveRecipients(audience: Audience): Promise<Recipient[]
   }
 
   let coursesQuery: FirebaseFirestore.Query = db.collectionGroup("courses");
-  if (audience.productId) {
-    coursesQuery = coursesQuery.where("productId", "==", audience.productId);
+  if (audience.productName) {
+    coursesQuery = coursesQuery.where("productName", "==", audience.productName);
   }
-  if (audience.academicYear && audience.semester) {
-    coursesQuery = coursesQuery.where("academicYear", "==", audience.academicYear).where("semester", "==", audience.semester);
+  if (audience.academicYear) {
+    coursesQuery = coursesQuery.where("academicYear", "==", audience.academicYear);
+  }
+  if (audience.semester) {
+    coursesQuery = coursesQuery.where("semester", "==", audience.semester);
   }
 
   const snapshot = await coursesQuery.get();

@@ -1162,6 +1162,12 @@ button {
   color: #1a1d23;
 }
 
+.ec-field select:disabled {
+  background: var(--gray-100);
+  color: var(--gray-400);
+  cursor: not-allowed;
+}
+
 .ec-subject-input {
   width: 100%;
   padding-left: 0.8rem;
