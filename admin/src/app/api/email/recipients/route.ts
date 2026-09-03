@@ -20,7 +20,8 @@ export async function POST(request: NextRequest) {
   }
 
   const audience = body.audience;
-  const hasCourseFilter = audience?.type === "course" && Boolean(audience.productName || audience.academicYear || audience.semester);
+  const hasCourseFilter =
+    audience?.type === "course" && Boolean((audience.productNames && audience.productNames.length > 0) || audience.academicYear || audience.semester);
   if (!audience || (audience.type !== "all" && audience.type !== "course") || (audience.type === "course" && !hasCourseFilter)) {
     return NextResponse.json({ success: false, message: "Invalid audience" }, { status: 400 });
   }

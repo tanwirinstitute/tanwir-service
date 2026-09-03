@@ -31,7 +31,7 @@ interface Progress {
 
 interface Audience {
   type: AudienceType;
-  productName?: string;
+  productNames?: string[];
   academicYear?: string;
   semester?: string;
 }
@@ -48,15 +48,13 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 /**
- * Courses are grouped by (name, academic year) — see recipients.ts — so the
- * year is always right in the label. Also surfaces when a group spans more
- * than one semester (e.g. a course synced under both a "Full Year" and a
- * separate "Fall" Squarespace product for the same year), since selecting
- * this entry targets all of them together.
+ * Courses are grouped by (term-stripped name, academic year) — see
+ * recipients.ts's normalizeCourseName — so "Foo - Fall Session" and "Foo -
+ * Full Year" collapse into one "Foo — 2026-2027" entry instead of showing
+ * as separate, confusingly similar options.
  */
 function courseLabel(course: CourseCatalogEntry): string {
-  const semesters = course.semesters.length > 0 ? ` (${course.semesters.join(", ")})` : "";
-  return `${course.productName} — ${course.academicYear}${semesters}`;
+  return `${course.displayName} — ${course.academicYear}`;
 }
 
 interface Props {
@@ -96,7 +94,7 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
     if (audienceType === "all") return { type: "all" };
     if (courseId) {
       const course = courses.find((c) => c.key === courseId);
-      return { type: "course", productName: course?.productName, academicYear: course?.academicYear };
+      return { type: "course", productNames: course?.productNames, academicYear: course?.academicYear };
     }
     const [academicYear, semester] = sectionKey ? sectionKey.split("__") : [undefined, undefined];
     return { type: "course", academicYear, semester };
@@ -105,7 +103,7 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
   const audienceLabel = useMemo(() => {
     if (audienceType === "all") return "All students";
     const course = courses.find((c) => c.key === courseId);
-    if (course) return `${course.productName} — ${course.academicYear}`;
+    if (course) return `${course.displayName} — ${course.academicYear}`;
     const [academicYear, semester] = sectionKey ? sectionKey.split("__") : [undefined, undefined];
     return academicYear && semester ? `${semester} ${academicYear}` : "(choose a course or term)";
   }, [audienceType, courseId, courses, sectionKey]);
