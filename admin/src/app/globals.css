@@ -1245,6 +1245,59 @@ button {
   border-color: var(--brand-green-light);
 }
 
+/* Right column: recipients peek + preview, stacked */
+
+.ec-side {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Recipients peek */
+
+.ec-recipients-count {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--brand-ink);
+  margin: 0 0 0.6rem;
+}
+
+.ec-recipients-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+}
+
+.ec-recipients-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.82rem;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.ec-recipients-list li:last-child {
+  border-bottom: none;
+}
+
+.ec-recipient-name {
+  font-weight: 600;
+  color: var(--brand-ink);
+  white-space: nowrap;
+}
+
+.ec-recipient-email {
+  color: var(--gray-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Preview panel */
 
 .ec-preview-card {

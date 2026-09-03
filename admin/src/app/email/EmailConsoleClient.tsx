@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import SignOutButton from "../SignOutButton";
@@ -18,7 +18,7 @@ interface RecipientResult {
   error?: string;
 }
 
-type AudienceType = "all" | "course" | "section";
+type AudienceType = "all" | "course";
 type SendPhase = "idle" | "confirming" | "sending" | "done";
 type TestStatus = "idle" | "sending" | "sent" | "error";
 
@@ -29,7 +29,15 @@ interface Progress {
   failures: RecipientResult[];
 }
 
+interface Audience {
+  type: AudienceType;
+  productId?: string;
+  academicYear?: string;
+  semester?: string;
+}
+
 const BATCH_SIZE = 25;
+const PREVIEW_DEBOUNCE_MS = 350;
 
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -37,6 +45,20 @@ function chunk<T>(items: T[], size: number): T[][] {
     chunks.push(items.slice(i, i + size));
   }
   return chunks;
+}
+
+/**
+ * Squarespace recreates some recurring products under a brand-new productId
+ * each year, so two courses can share an identical name but be different
+ * years entirely — show every term a course has records under right in its
+ * label so that's never ambiguous.
+ */
+function courseLabel(course: CourseCatalogEntry): string {
+  if (course.terms.length === 0) return course.productName;
+  const labels = course.terms.map((t) => `${t.semester} ${t.academicYear}`);
+  const shown = labels.slice(0, 2).join(", ");
+  const suffix = labels.length > 2 ? ` +${labels.length - 2} more` : "";
+  return `${course.productName} — ${shown}${suffix}`;
 }
 
 interface Props {
@@ -47,8 +69,8 @@ interface Props {
 
 export default function EmailConsoleClient({ adminEmail, courses, sections }: Props) {
   const [audienceType, setAudienceType] = useState<AudienceType>("all");
-  const [courseId, setCourseId] = useState(courses[0]?.productId ?? "");
-  const [sectionKey, setSectionKey] = useState(sections[0] ? `${sections[0].academicYear}__${sections[0].semester}` : "");
+  const [courseId, setCourseId] = useState("");
+  const [sectionKey, setSectionKey] = useState("");
 
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
@@ -57,27 +79,75 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
   const [testError, setTestError] = useState<string | null>(null);
 
   const [sendPhase, setSendPhase] = useState<SendPhase>("idle");
-  const [pendingRecipients, setPendingRecipients] = useState<Recipient[]>([]);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [previewRecipients, setPreviewRecipients] = useState<Recipient[] | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
+  const hasAudienceSelection = audienceType === "all" || Boolean(courseId) || Boolean(sectionKey);
+
+  const buildAudience = useCallback((): Audience => {
+    if (audienceType === "all") return { type: "all" };
+    const [academicYear, semester] = sectionKey ? sectionKey.split("__") : [undefined, undefined];
+    return { type: "course", productId: courseId || undefined, academicYear, semester };
+  }, [audienceType, courseId, sectionKey]);
+
   const audienceLabel = useMemo(() => {
     if (audienceType === "all") return "All students";
-    if (audienceType === "course") {
-      return courses.find((c) => c.productId === courseId)?.productName ?? "(select a course)";
-    }
-    const [academicYear, semester] = sectionKey.split("__");
-    return semester && academicYear ? `${semester} ${academicYear}` : "(select a section)";
+    const course = courses.find((c) => c.productId === courseId);
+    const [academicYear, semester] = sectionKey ? sectionKey.split("__") : [undefined, undefined];
+    const parts: string[] = [];
+    if (course) parts.push(course.productName);
+    if (academicYear && semester) parts.push(`${semester} ${academicYear}`);
+    return parts.length > 0 ? parts.join(" — ") : "(choose a course or term)";
   }, [audienceType, courseId, courses, sectionKey]);
 
   const canCompose = subject.trim().length > 0 && bodyHtml.trim().length > 0;
 
-  const buildAudience = useCallback(() => {
-    if (audienceType === "all") return { type: "all" as const };
-    if (audienceType === "course") return { type: "course" as const, productId: courseId };
-    const [academicYear, semester] = sectionKey.split("__");
-    return { type: "section" as const, academicYear, semester };
-  }, [audienceType, courseId, sectionKey]);
+  // Live recipients "peek" — refetches (debounced) whenever the audience
+  // selection changes, so you can see exactly who a send would reach before
+  // touching the send button.
+  useEffect(() => {
+    if (!hasAudienceSelection) {
+      setPreviewRecipients(null);
+      setPreviewError(null);
+      setPreviewLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setPreviewLoading(true);
+    setPreviewError(null);
+
+    const timeout = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/email/recipients", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ audience: buildAudience() }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || `Request failed (${res.status})`);
+        }
+        if (!cancelled) setPreviewRecipients(data.recipients as Recipient[]);
+      } catch (err) {
+        if (!cancelled) {
+          setPreviewError((err as Error).message);
+          setPreviewRecipients(null);
+        }
+      } finally {
+        if (!cancelled) setPreviewLoading(false);
+      }
+    }, PREVIEW_DEBOUNCE_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [hasAudienceSelection, buildAudience]);
 
   const sendTest = useCallback(async () => {
     setTestStatus("sending");
@@ -99,35 +169,20 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
     }
   }, [subject, bodyHtml]);
 
-  const startBlast = useCallback(async () => {
+  const startBlast = useCallback(() => {
     setError(null);
-    setSendPhase("sending");
-    try {
-      const res = await fetch("/api/email/recipients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ audience: buildAudience() }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || `Request failed (${res.status})`);
-      }
-      const recipients = data.recipients as Recipient[];
-      if (recipients.length === 0) {
-        throw new Error("No students match this audience — nothing to send.");
-      }
-      setPendingRecipients(recipients);
-      setSendPhase("confirming");
-    } catch (err) {
-      setError((err as Error).message);
-      setSendPhase("idle");
+    if (!previewRecipients || previewRecipients.length === 0) {
+      setError("No students match this audience — nothing to send.");
+      return;
     }
-  }, [buildAudience]);
+    setSendPhase("confirming");
+  }, [previewRecipients]);
 
   const confirmBlast = useCallback(async () => {
+    const recipients = previewRecipients ?? [];
     setSendPhase("sending");
-    const batches = chunk(pendingRecipients, BATCH_SIZE);
-    const runningProgress: Progress = { total: pendingRecipients.length, sent: 0, failed: 0, failures: [] };
+    const batches = chunk(recipients, BATCH_SIZE);
+    const runningProgress: Progress = { total: recipients.length, sent: 0, failed: 0, failures: [] };
     setProgress({ ...runningProgress });
 
     for (const batch of batches) {
@@ -155,11 +210,10 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
     }
 
     setSendPhase("done");
-  }, [pendingRecipients, subject, bodyHtml]);
+  }, [previewRecipients, subject, bodyHtml]);
 
   const startOver = useCallback(() => {
     setSendPhase("idle");
-    setPendingRecipients([]);
     setProgress(null);
     setSubject("");
     setBodyHtml("");
@@ -210,51 +264,57 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
             <div className="ec-field">
               <label className="ec-label">Audience</label>
               <div className="segmented">
-                <button type="button" className={audienceType === "all" ? "segmented-btn active" : "segmented-btn"} onClick={() => setAudienceType("all")}>
+                <button
+                  type="button"
+                  className={audienceType === "all" ? "segmented-btn active" : "segmented-btn"}
+                  onClick={() => setAudienceType("all")}
+                >
                   All students
                 </button>
-                <button type="button" className={audienceType === "course" ? "segmented-btn active" : "segmented-btn"} onClick={() => setAudienceType("course")}>
-                  Course
-                </button>
-                <button type="button" className={audienceType === "section" ? "segmented-btn active" : "segmented-btn"} onClick={() => setAudienceType("section")}>
-                  Section
+                <button
+                  type="button"
+                  className={audienceType === "course" ? "segmented-btn active" : "segmented-btn"}
+                  onClick={() => setAudienceType("course")}
+                >
+                  Course / term
                 </button>
               </div>
             </div>
 
             {audienceType === "course" && (
-              <div className="ec-field">
-                <label className="ec-label" htmlFor="ec-course">
-                  Course
-                </label>
-                <select id="ec-course" value={courseId} onChange={(e) => setCourseId(e.target.value)}>
-                  {courses.length === 0 && <option value="">No courses found</option>}
-                  {courses.map((c) => (
-                    <option key={c.productId} value={c.productId}>
-                      {c.productName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {audienceType === "section" && (
-              <div className="ec-field">
-                <label className="ec-label" htmlFor="ec-section">
-                  Section (semester + academic year)
-                </label>
-                <select id="ec-section" value={sectionKey} onChange={(e) => setSectionKey(e.target.value)}>
-                  {sections.length === 0 && <option value="">No sections found</option>}
-                  {sections.map((s) => {
-                    const key = `${s.academicYear}__${s.semester}`;
-                    return (
-                      <option key={key} value={key}>
-                        {s.semester} {s.academicYear}
+              <>
+                <div className="ec-field">
+                  <label className="ec-label" htmlFor="ec-course">
+                    Course
+                  </label>
+                  <select id="ec-course" value={courseId} onChange={(e) => setCourseId(e.target.value)}>
+                    <option value="">All courses</option>
+                    {courses.map((c) => (
+                      <option key={c.productId} value={c.productId}>
+                        {courseLabel(c)}
                       </option>
-                    );
-                  })}
-                </select>
-              </div>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="ec-field">
+                  <label className="ec-label" htmlFor="ec-section">
+                    Term
+                  </label>
+                  <select id="ec-section" value={sectionKey} onChange={(e) => setSectionKey(e.target.value)}>
+                    <option value="">All terms</option>
+                    {sections.map((s) => {
+                      const key = `${s.academicYear}__${s.semester}`;
+                      return (
+                        <option key={key} value={key}>
+                          {s.semester} {s.academicYear}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <p className="ec-hint">Pick a course, a term, or both — leaving both on &quot;All&quot; targets every student.</p>
+                </div>
+              </>
             )}
 
             <div className="ec-field">
@@ -291,22 +351,51 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
               <button
                 type="button"
                 className="ec-btn ec-btn-primary"
-                disabled={!canCompose || sendPhase === "sending" || (audienceType === "course" && !courseId) || (audienceType === "section" && !sectionKey)}
+                disabled={!canCompose || !hasAudienceSelection || previewLoading || !previewRecipients || previewRecipients.length === 0}
                 onClick={startBlast}
               >
-                {sendPhase === "sending" && !progress ? "Resolving recipients…" : `Send to ${audienceLabel}`}
+                {previewLoading ? "Resolving recipients…" : `Send to ${audienceLabel}`}
               </button>
             </div>
           </div>
 
-          <div className="ec-panel ec-preview">
-            <p className="ec-label">Preview</p>
-            <div className="ec-preview-card">
-              <p className="ec-preview-subject">{subject || "(no subject)"}</p>
-              <div className="ec-preview-logo">
-                <Image src="/logo.webp" alt="Tanwir Institute" width={37} height={40} />
+          <div className="ec-side">
+            <div className="ec-panel ec-recipients">
+              <p className="ec-label">Recipients</p>
+              {!hasAudienceSelection && <p className="ec-hint">Choose a course or term to see who this would reach.</p>}
+              {hasAudienceSelection && previewLoading && <p className="ec-hint">Resolving recipients…</p>}
+              {hasAudienceSelection && previewError && <p className="ec-error">{previewError}</p>}
+              {hasAudienceSelection && !previewLoading && !previewError && previewRecipients && (
+                <>
+                  <p className="ec-recipients-count">
+                    {previewRecipients.length} recipient{previewRecipients.length === 1 ? "" : "s"}
+                  </p>
+                  {previewRecipients.length > 0 && (
+                    <ul className="ec-recipients-list">
+                      {previewRecipients
+                        .slice()
+                        .sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email))
+                        .map((r) => (
+                          <li key={r.email}>
+                            {r.name ? <span className="ec-recipient-name">{r.name}</span> : null}
+                            <span className="ec-recipient-email">{r.email}</span>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="ec-panel ec-preview">
+              <p className="ec-label">Preview</p>
+              <div className="ec-preview-card">
+                <p className="ec-preview-subject">{subject || "(no subject)"}</p>
+                <div className="ec-preview-logo">
+                  <Image src="/logo.webp" alt="Tanwir Institute" width={37} height={40} />
+                </div>
+                <div className="ec-preview-body" dangerouslySetInnerHTML={{ __html: bodyHtml || "<p><em>Start writing to see a preview…</em></p>" }} />
               </div>
-              <div className="ec-preview-body" dangerouslySetInnerHTML={{ __html: bodyHtml || "<p><em>Start writing to see a preview…</em></p>" }} />
             </div>
           </div>
         </div>
@@ -315,7 +404,7 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
       {sendPhase === "confirming" && (
         <div className="ec-modal-backdrop">
           <div className="ec-modal">
-            <h2>Send to {pendingRecipients.length} students?</h2>
+            <h2>Send to {previewRecipients?.length ?? 0} students?</h2>
             <p>
               Audience: <strong>{audienceLabel}</strong>. This sends a real email to every recipient and can&apos;t be undone.
             </p>

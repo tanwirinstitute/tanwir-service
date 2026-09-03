@@ -20,11 +20,11 @@ export async function POST(request: NextRequest) {
   }
 
   const audience = body.audience;
+  const hasTerm = audience?.type === "course" && Boolean(audience.academicYear) && Boolean(audience.semester);
   if (
     !audience ||
-    (audience.type !== "all" && audience.type !== "course" && audience.type !== "section") ||
-    (audience.type === "course" && !audience.productId) ||
-    (audience.type === "section" && (!audience.academicYear || !audience.semester))
+    (audience.type !== "all" && audience.type !== "course") ||
+    (audience.type === "course" && !audience.productId && !hasTerm)
   ) {
     return NextResponse.json({ success: false, message: "Invalid audience" }, { status: 400 });
   }

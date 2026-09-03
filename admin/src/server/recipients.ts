@@ -9,20 +9,28 @@ export interface Recipient {
   name: string | null;
 }
 
-export interface CourseCatalogEntry {
-  productId: string;
-  productName: string;
-}
-
 export interface SectionCatalogEntry {
   academicYear: string;
   semester: string;
 }
 
+export interface CourseCatalogEntry {
+  productId: string;
+  productName: string;
+  /**
+   * Every distinct academicYear/semester this productId has records under.
+   * Squarespace recreates some recurring products as a brand-new productId
+   * each year (confirmed in courseSync.ts's notes), so two catalog entries
+   * can share an identical productName but be different years entirely —
+   * this is what lets the UI show the year(s) right next to the course name
+   * instead of leaving two identically-labeled options.
+   */
+  terms: SectionCatalogEntry[];
+}
+
 export type Audience =
   | { type: "all" }
-  | { type: "course"; productId: string }
-  | { type: "section"; academicYear: string; semester: string };
+  | { type: "course"; productId?: string; academicYear?: string; semester?: string };
 
 function studentName(data: Partial<StudentRecord>): string | null {
   const first = data.firstName?.trim();
@@ -30,25 +38,38 @@ function studentName(data: Partial<StudentRecord>): string | null {
   return [first, last].filter(Boolean).join(" ") || null;
 }
 
-/** Distinct courses across every student, for the audience picker's course dropdown. */
+/** Distinct courses across every student, each with the term(s) it has records under, for the audience picker. */
 export async function getCourseCatalog(): Promise<CourseCatalogEntry[]> {
   const db = getDb();
-  const snapshot = await db.collectionGroup("courses").select("productId", "productName").get();
+  const snapshot = await db.collectionGroup("courses").select("productId", "productName", "academicYear", "semester").get();
 
-  const byId = new Map<string, string>();
+  const byId = new Map<string, { productName: string; terms: Map<string, SectionCatalogEntry> }>();
   for (const doc of snapshot.docs) {
-    const data = doc.data() as { productId?: string; productName?: string };
-    if (data.productId && !byId.has(data.productId)) {
-      byId.set(data.productId, data.productName || data.productId);
+    const data = doc.data() as { productId?: string; productName?: string; academicYear?: string; semester?: string };
+    if (!data.productId) continue;
+
+    let entry = byId.get(data.productId);
+    if (!entry) {
+      entry = { productName: data.productName || data.productId, terms: new Map() };
+      byId.set(data.productId, entry);
+    }
+
+    if (data.academicYear && data.semester) {
+      const key = `${data.academicYear}__${data.semester}`;
+      if (!entry.terms.has(key)) {
+        entry.terms.set(key, { academicYear: data.academicYear, semester: data.semester });
+      }
     }
   }
 
-  return Array.from(byId, ([productId, productName]) => ({ productId, productName })).sort((a, b) =>
-    a.productName.localeCompare(b.productName)
-  );
+  return Array.from(byId, ([productId, { productName, terms }]) => ({
+    productId,
+    productName,
+    terms: Array.from(terms.values()).sort((a, b) => b.academicYear.localeCompare(a.academicYear) || a.semester.localeCompare(b.semester)),
+  })).sort((a, b) => a.productName.localeCompare(b.productName));
 }
 
-/** Distinct academicYear/semester pairs across every student, for the audience picker's section dropdown. */
+/** Distinct academicYear/semester pairs across every student, for the "any course, just this term" filter. */
 export async function getSectionCatalog(): Promise<SectionCatalogEntry[]> {
   const db = getDb();
   const snapshot = await db.collectionGroup("courses").select("academicYear", "semester").get();
@@ -81,10 +102,13 @@ async function studentRefsToRecipients(studentRefs: FirebaseFirestore.DocumentRe
 
 /**
  * Resolves an audience to a deduplicated recipient list. "all" reads the
- * students collection directly; "course"/"section" query the courses
- * collection group (a student can have multiple matching courses — dedup by
- * student doc path before fetching names) and bypass firestore.rules
- * entirely via firebase-admin, same as courseSync.ts.
+ * students collection directly. "course" queries the courses collection
+ * group, filtered by whichever of productId/(academicYear+semester) is
+ * present — either alone, or both together for "this course, this specific
+ * year" (a student can still have multiple matching course records, e.g.
+ * a payment-plan course synced as several line items — dedup by student doc
+ * path before fetching names). Bypasses firestore.rules entirely via
+ * firebase-admin, same as courseSync.ts.
  */
 export async function resolveRecipients(audience: Audience): Promise<Recipient[]> {
   const db = getDb();
@@ -98,10 +122,12 @@ export async function resolveRecipients(audience: Audience): Promise<Recipient[]
   }
 
   let coursesQuery: FirebaseFirestore.Query = db.collectionGroup("courses");
-  coursesQuery =
-    audience.type === "course"
-      ? coursesQuery.where("productId", "==", audience.productId)
-      : coursesQuery.where("academicYear", "==", audience.academicYear).where("semester", "==", audience.semester);
+  if (audience.productId) {
+    coursesQuery = coursesQuery.where("productId", "==", audience.productId);
+  }
+  if (audience.academicYear && audience.semester) {
+    coursesQuery = coursesQuery.where("academicYear", "==", audience.academicYear).where("semester", "==", audience.semester);
+  }
 
   const snapshot = await coursesQuery.get();
   const studentRefsByPath = new Map<string, FirebaseFirestore.DocumentReference>();
