@@ -6,6 +6,7 @@ import Link from "next/link";
 import SignOutButton from "../SignOutButton";
 import RichTextEditor from "./RichTextEditor";
 import type { CourseCatalogEntry, SectionCatalogEntry } from "@/server/recipients";
+import { ACTIVE_REGISTRATION_ACADEMIC_YEAR, isAcademicYearAtOrAfter } from "@/server/academicTerm";
 
 interface Recipient {
   email: string;
@@ -47,6 +48,16 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
+/** Splits into "active" (this registration cycle or later) and "archived" (older), preserving relative order within each. */
+function partitionByActiveYear<T extends { academicYear: string }>(items: T[]): { active: T[]; archived: T[] } {
+  const active: T[] = [];
+  const archived: T[] = [];
+  for (const item of items) {
+    (isAcademicYearAtOrAfter(item.academicYear, ACTIVE_REGISTRATION_ACADEMIC_YEAR) ? active : archived).push(item);
+  }
+  return { active, archived };
+}
+
 /**
  * Courses are grouped by (term-stripped name, academic year) — see
  * recipients.ts's normalizeCourseName — so "Foo - Fall Session" and "Foo -
@@ -83,6 +94,9 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
   const [previewError, setPreviewError] = useState<string | null>(null);
 
   const hasAudienceSelection = audienceType === "all" || Boolean(courseId) || Boolean(sectionKey);
+
+  const { active: activeCourses, archived: archivedCourses } = useMemo(() => partitionByActiveYear(courses), [courses]);
+  const { active: activeSections, archived: archivedSections } = useMemo(() => partitionByActiveYear(sections), [sections]);
 
   // Course and term are mutually exclusive, not composed: a course selection
   // already pins a specific (name, year) group on its own (see
@@ -300,11 +314,24 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
                     }}
                   >
                     <option value="">All courses</option>
-                    {courses.map((c) => (
-                      <option key={c.key} value={c.key}>
-                        {courseLabel(c)}
-                      </option>
-                    ))}
+                    {activeCourses.length > 0 && (
+                      <optgroup label="Active">
+                        {activeCourses.map((c) => (
+                          <option key={c.key} value={c.key}>
+                            {courseLabel(c)}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {archivedCourses.length > 0 && (
+                      <optgroup label="Archived">
+                        {archivedCourses.map((c) => (
+                          <option key={c.key} value={c.key}>
+                            {courseLabel(c)}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
 
@@ -322,14 +349,24 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
                     }}
                   >
                     <option value="">All terms</option>
-                    {sections.map((s) => {
-                      const key = `${s.academicYear}__${s.semester}`;
-                      return (
-                        <option key={key} value={key}>
-                          {s.semester} {s.academicYear}
-                        </option>
-                      );
-                    })}
+                    {activeSections.length > 0 && (
+                      <optgroup label="Active">
+                        {activeSections.map((s) => (
+                          <option key={`${s.academicYear}__${s.semester}`} value={`${s.academicYear}__${s.semester}`}>
+                            {s.semester} {s.academicYear}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {archivedSections.length > 0 && (
+                      <optgroup label="Archived">
+                        {archivedSections.map((s) => (
+                          <option key={`${s.academicYear}__${s.semester}`} value={`${s.academicYear}__${s.semester}`}>
+                            {s.semester} {s.academicYear}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                   <p className="ec-hint">Pick a course (a specific year) or a term (any course, that semester) — picking one clears the other.</p>
                 </div>
