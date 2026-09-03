@@ -6,7 +6,6 @@ import Link from "next/link";
 import SignOutButton from "../SignOutButton";
 import RichTextEditor from "./RichTextEditor";
 import type { CourseCatalogEntry, SectionCatalogEntry } from "@/server/recipients";
-import { ACTIVE_REGISTRATION_ACADEMIC_YEAR, isAcademicYearAtOrAfter } from "@/server/academicTerm";
 
 interface Recipient {
   email: string;
@@ -48,24 +47,21 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
-/** Splits into "active" (this registration cycle or later) and "archived" (older), preserving relative order within each. */
-function partitionByActiveYear<T extends { academicYear: string }>(items: T[]): { active: T[]; archived: T[] } {
-  const active: T[] = [];
-  const archived: T[] = [];
-  for (const item of items) {
-    (isAcademicYearAtOrAfter(item.academicYear, ACTIVE_REGISTRATION_ACADEMIC_YEAR) ? active : archived).push(item);
-  }
-  return { active, archived };
-}
-
 /**
- * Courses are grouped by (term-stripped name, academic year) — see
- * recipients.ts's normalizeCourseName — so "Foo - Fall Session" and "Foo -
- * Full Year" collapse into one "Foo — 2026-2027" entry instead of showing
- * as separate, confusingly similar options.
+ * Groups by academic year, newest first — scales to any number of years
+ * without needing a fixed "current cycle" cutoff, and lets each option's own
+ * label drop the year (redundant once it's the group heading).
  */
-function courseLabel(course: CourseCatalogEntry): string {
-  return `${course.displayName} — ${course.academicYear}`;
+function groupByAcademicYear<T extends { academicYear: string }>(items: T[]): { academicYear: string; items: T[] }[] {
+  const byYear = new Map<string, T[]>();
+  for (const item of items) {
+    const group = byYear.get(item.academicYear);
+    if (group) group.push(item);
+    else byYear.set(item.academicYear, [item]);
+  }
+  return Array.from(byYear, ([academicYear, groupItems]) => ({ academicYear, items: groupItems })).sort((a, b) =>
+    b.academicYear.localeCompare(a.academicYear)
+  );
 }
 
 interface Props {
@@ -95,8 +91,8 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
 
   const hasAudienceSelection = audienceType === "all" || Boolean(courseId) || Boolean(sectionKey);
 
-  const { active: activeCourses, archived: archivedCourses } = useMemo(() => partitionByActiveYear(courses), [courses]);
-  const { active: activeSections, archived: archivedSections } = useMemo(() => partitionByActiveYear(sections), [sections]);
+  const courseGroups = useMemo(() => groupByAcademicYear(courses), [courses]);
+  const sectionGroups = useMemo(() => groupByAcademicYear(sections), [sections]);
 
   // Course and term are mutually exclusive, not composed: a course selection
   // already pins a specific (name, year) group on its own (see
@@ -314,24 +310,15 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
                     }}
                   >
                     <option value="">All courses</option>
-                    {activeCourses.length > 0 && (
-                      <optgroup label="Active">
-                        {activeCourses.map((c) => (
+                    {courseGroups.map((group) => (
+                      <optgroup key={group.academicYear} label={group.academicYear}>
+                        {group.items.map((c) => (
                           <option key={c.key} value={c.key}>
-                            {courseLabel(c)}
+                            {c.displayName}
                           </option>
                         ))}
                       </optgroup>
-                    )}
-                    {archivedCourses.length > 0 && (
-                      <optgroup label="Archived">
-                        {archivedCourses.map((c) => (
-                          <option key={c.key} value={c.key}>
-                            {courseLabel(c)}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
+                    ))}
                   </select>
                 </div>
 
@@ -349,24 +336,15 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
                     }}
                   >
                     <option value="">All terms</option>
-                    {activeSections.length > 0 && (
-                      <optgroup label="Active">
-                        {activeSections.map((s) => (
+                    {sectionGroups.map((group) => (
+                      <optgroup key={group.academicYear} label={group.academicYear}>
+                        {group.items.map((s) => (
                           <option key={`${s.academicYear}__${s.semester}`} value={`${s.academicYear}__${s.semester}`}>
-                            {s.semester} {s.academicYear}
+                            {s.semester}
                           </option>
                         ))}
                       </optgroup>
-                    )}
-                    {archivedSections.length > 0 && (
-                      <optgroup label="Archived">
-                        {archivedSections.map((s) => (
-                          <option key={`${s.academicYear}__${s.semester}`} value={`${s.academicYear}__${s.semester}`}>
-                            {s.semester} {s.academicYear}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
+                    ))}
                   </select>
                   <p className="ec-hint">Pick a course (a specific year) or a term (any course, that semester) — picking one clears the other.</p>
                 </div>
