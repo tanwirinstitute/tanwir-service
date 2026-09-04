@@ -1,0 +1,40 @@
+# Cron trigger for the consent app's bulk Zakat consent email send. The
+# endpoint is idempotent per applicant (consentEmailSentAt guard — see
+# consent/src/server/zakat.ts), so overlapping or retried runs are safe.
+# Replaces an admin manually clicking "Send all pending" in /admin.
+name: Send Zakat consent emails
+
+on:
+  schedule:
+    # Target cadence is ~every 30 min, same hedging approach as
+    # sync-courses.yml: GitHub's scheduled events are best-effort and get
+    # dropped most often at the top of the hour (peak load), so both entries
+    # are offset off :00/:30 and a second, further-offset entry is added as
+    # a hedge — if one firing is skipped, the other still covers that
+    # half-hour. Different offsets from sync-courses.yml's to spread load.
+    - cron: "12,42 * * * *"
+    - cron: "27,57 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call send-all endpoint
+        env:
+          ZAKAT_SEND_API_TOKEN: ${{ secrets.ZAKAT_SEND_API_TOKEN }}
+        run: |
+          if [ -z "$ZAKAT_SEND_API_TOKEN" ]; then
+            echo "ZAKAT_SEND_API_TOKEN repository secret is not set" >&2
+            exit 1
+          fi
+
+          # Higher than sync-courses.yml's 300s: this endpoint sends one
+          # email per pending applicant sequentially, and the very first run
+          # after this job is deployed may need to clear a real backlog of
+          # everyone who was never manually emailed.
+          curl --silent --show-error --fail-with-body \
+            --retry 3 --retry-all-errors --max-time 600 \
+            -X POST "https://consent.tanwir.institute/api/admin/send-all" \
+            -H "Authorization: Bearer $ZAKAT_SEND_API_TOKEN" \
+            -H "Content-Type: application/json"

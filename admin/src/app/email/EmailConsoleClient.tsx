@@ -64,6 +64,11 @@ function groupByAcademicYear<T extends { academicYear: string }>(items: T[]): { 
   );
 }
 
+/** Program aggregates carry a `program:`-namespaced key (see recipients.ts) — labeled distinctly so it's clear it targets every course in the program, not just one. */
+function courseOptionLabel(course: CourseCatalogEntry): string {
+  return course.key.startsWith("program:") ? `All ${course.displayName}` : course.displayName;
+}
+
 interface Props {
   adminEmail: string | null;
   courses: CourseCatalogEntry[];
@@ -113,7 +118,7 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
   const audienceLabel = useMemo(() => {
     if (audienceType === "all") return "All students";
     const course = courses.find((c) => c.key === courseId);
-    if (course) return `${course.displayName} — ${course.academicYear}`;
+    if (course) return `${courseOptionLabel(course)} — ${course.academicYear}`;
     const [academicYear, semester] = sectionKey ? sectionKey.split("__") : [undefined, undefined];
     return academicYear && semester ? `${semester} ${academicYear}` : "(choose a course or term)";
   }, [audienceType, courseId, courses, sectionKey]);
@@ -314,7 +319,7 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
                       <optgroup key={group.academicYear} label={group.academicYear}>
                         {group.items.map((c) => (
                           <option key={c.key} value={c.key}>
-                            {c.displayName}
+                            {courseOptionLabel(c)}
                           </option>
                         ))}
                       </optgroup>
