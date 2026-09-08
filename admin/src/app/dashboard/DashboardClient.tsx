@@ -57,6 +57,20 @@ function courseMatchesStatus(course: CourseWithId, statusFilter: StatusFilter): 
   return Boolean(course.materialsPickedUp);
 }
 
+function courseMatchesGender(course: CourseWithId, genderFilter: string): boolean {
+  return genderFilter === "all" || course.gender === genderFilter;
+}
+
+// Filters on the raw productName as-is (same value already shown in the
+// expanded course table below), not a normalized/collapsed name — unlike the
+// Email Console's course picker, this doesn't need to merge e.g. "Foo (Fall
+// Semester)" and "Foo (Full Year)" into one option, so there's no need to
+// pull in that logic (which also lives in a firebase-admin-importing server
+// module unsafe to bundle into this client component).
+function courseMatchesCourseName(course: CourseWithId, courseFilter: string): boolean {
+  return courseFilter === "all" || course.productName === courseFilter;
+}
+
 function initials(student: { firstName: string | null; lastName: string | null; email: string }): string {
   const first = student.firstName?.trim()?.[0];
   const last = student.lastName?.trim()?.[0];
@@ -235,6 +249,8 @@ export default function DashboardClient() {
   const [query, setQuery] = useState("");
   const [yearFilter, setYearFilter] = useState<YearFilter>("upcoming");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [genderFilter, setGenderFilter] = useState<string>("all");
+  const [courseFilter, setCourseFilter] = useState<string>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [pending, setPending] = useState<Set<string>>(new Set());
 
@@ -316,6 +332,20 @@ export default function DashboardClient() {
     return Array.from(years).sort((a, b) => b.localeCompare(a));
   }, [courses]);
 
+  const genderOptions = useMemo(() => {
+    const genders = new Set<string>();
+    courses.forEach((list) => list.forEach((c) => {
+      if (c.gender) genders.add(c.gender);
+    }));
+    return Array.from(genders).sort();
+  }, [courses]);
+
+  const courseNameOptions = useMemo(() => {
+    const names = new Set<string>();
+    courses.forEach((list) => list.forEach((c) => names.add(c.productName)));
+    return Array.from(names).sort();
+  }, [courses]);
+
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
 
@@ -328,7 +358,13 @@ export default function DashboardClient() {
     return all
       .map((student) => {
         const matchingCourses = student.courses
-          .filter((c) => courseMatchesYear(c, yearFilter) && courseMatchesStatus(c, statusFilter))
+          .filter(
+            (c) =>
+              courseMatchesYear(c, yearFilter) &&
+              courseMatchesStatus(c, statusFilter) &&
+              courseMatchesGender(c, genderFilter) &&
+              courseMatchesCourseName(c, courseFilter)
+          )
           .sort((a, b) => (a.purchasedOn < b.purchasedOn ? 1 : -1));
         return { ...student, matchingCourses };
       })
@@ -342,7 +378,7 @@ export default function DashboardClient() {
           .includes(q);
       })
       .sort((a, b) => a.email.localeCompare(b.email));
-  }, [students, courses, query, yearFilter, statusFilter]);
+  }, [students, courses, query, yearFilter, statusFilter, genderFilter, courseFilter]);
 
   const registrationStats = useMemo(() => {
     let needsPickup = 0;
@@ -394,7 +430,7 @@ export default function DashboardClient() {
     return <DashboardSkeleton />;
   }
 
-  const filtersActive = query.trim() !== "" || statusFilter !== "all";
+  const filtersActive = query.trim() !== "" || statusFilter !== "all" || genderFilter !== "all" || courseFilter !== "all";
 
   return (
     <main className="dashboard-shell">
@@ -451,6 +487,30 @@ export default function DashboardClient() {
             {yearOptions.map((year) => (
               <option key={year} value={year}>
                 {year}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="filter-field">
+          <span>Gender</span>
+          <select value={genderFilter} onChange={(event) => setGenderFilter(event.target.value)}>
+            <option value="all">All</option>
+            {genderOptions.map((gender) => (
+              <option key={gender} value={gender}>
+                {gender}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="filter-field">
+          <span>Course</span>
+          <select value={courseFilter} onChange={(event) => setCourseFilter(event.target.value)}>
+            <option value="all">All courses</option>
+            {courseNameOptions.map((name) => (
+              <option key={name} value={name}>
+                {name}
               </option>
             ))}
           </select>
