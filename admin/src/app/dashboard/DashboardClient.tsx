@@ -9,6 +9,7 @@ import { collection, collectionGroup, doc, onSnapshot, serverTimestamp, Timestam
 import { getClientAuth, getClientDb } from "@/lib/firebaseClient";
 import SignOutButton from "../SignOutButton";
 import { ACTIVE_REGISTRATION_ACADEMIC_YEAR, isAcademicYearAtOrAfter } from "@/server/academicTerm";
+import { courseGroupName } from "@/lib/coursePrograms";
 import type { CourseRecord, StudentRecord } from "@/types/student";
 
 type CourseWithId = CourseRecord & { id: string };
@@ -61,14 +62,13 @@ function courseMatchesGender(course: CourseWithId, genderFilter: string): boolea
   return genderFilter === "all" || course.gender === genderFilter;
 }
 
-// Filters on the raw productName as-is (same value already shown in the
-// expanded course table below), not a normalized/collapsed name — unlike the
-// Email Console's course picker, this doesn't need to merge e.g. "Foo (Fall
-// Semester)" and "Foo (Full Year)" into one option, so there's no need to
-// pull in that logic (which also lives in a firebase-admin-importing server
-// module unsafe to bundle into this client component).
+// Filters on the fully rolled-up group (same grouping as the Email
+// Console's course picker): every term variant of a course and every
+// year/level of a multi-year program — Prophetic Guidance, Associates
+// Program, Taqwa for Teens, Advanced Studies — collapses into one option.
+// The expanded course table below still shows the raw productName.
 function courseMatchesCourseName(course: CourseWithId, courseFilter: string): boolean {
-  return courseFilter === "all" || course.productName === courseFilter;
+  return courseFilter === "all" || courseGroupName(course.productName) === courseFilter;
 }
 
 function initials(student: { firstName: string | null; lastName: string | null; email: string }): string {
@@ -342,7 +342,7 @@ export default function DashboardClient() {
 
   const courseNameOptions = useMemo(() => {
     const names = new Set<string>();
-    courses.forEach((list) => list.forEach((c) => names.add(c.productName)));
+    courses.forEach((list) => list.forEach((c) => names.add(courseGroupName(c.productName))));
     return Array.from(names).sort();
   }, [courses]);
 
