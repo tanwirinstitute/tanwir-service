@@ -46,3 +46,30 @@ Firestore access for the dashboard is governed by `../firestore.rules` (repo roo
 `/email` — compose a rich-text message, pick an audience (all students, or a course/term), preview the exact recipient list, send a test to yourself, then blast. Sends go out through the emailer service (`../emailer`, `POST /api/send-blast-email`) one Gmail message per recipient, chunked into batches of 25 by the client.
 
 Every blast is logged to the `emailSends` Firestore collection (written and read only server-side via `firebase-admin` in `src/server/emailHistory.ts` — no `firestore.rules` entry needed, the project-wide default deny covers it). The **History** tab lists recent sends with per-send delivered/failed counts; when Gmail rejected some recipients (intermittent 403s under rate/quota pressure), each failure shows the reason and a **Retry failed** button re-sends the same content to just those recipients (`POST /api/email/retry`), recording the attempt as its own history entry linked back via `retryOf`. Retrying is safe to repeat — it only ever targets the recipients still marked failed.
+
+## Telemetry
+
+**Backend** — OpenTelemetry in `src/instrumentation.ts` (traces via [`@vercel/otel`](https://www.npmjs.com/package/@vercel/otel)) + `src/lib/telemetry.ts` (metrics), exporting to the **Grafana Cloud OTLP gateway**. No-op until the `GRAFANA_OTLP_*` trio is set.
+
+```
+# Grafana Cloud → Connections → "OpenTelemetry (OTLP)": endpoint, numeric
+# instance ID, and an access-policy token with metrics:write + traces:write.
+GRAFANA_OTLP_ENDPOINT=https://otlp-gateway-<zone>.grafana.net/otlp
+GRAFANA_OTLP_INSTANCE_ID=
+GRAFANA_OTLP_TOKEN=
+OTEL_DEPLOYMENT_ENVIRONMENT=production   # optional; defaults to NODE_ENV
+```
+
+Custom metrics: `admin.course_sync.run` (counter, tag `outcome`) and `admin.course_sync.courses_written` (histogram) around `POST /api/sync-courses`; `admin.email.blast_batch` (counter, tag `outcome`) around `POST /api/email/send-blast` — the admin-side complement to the emailer's per-recipient `email.gmail.send`.
+
+**Frontend (RUM)** — [Grafana Faro](https://grafana.com/docs/grafana-cloud/monitor-applications/frontend-observability/) in `src/instrumentation-client.ts`: page-load + web-vitals timing, uncaught JS errors, session tracking, and a `route_change` event on every client navigation. No-op until the collector URL is set.
+
+```
+# Grafana Cloud → Frontend Observability → your app → "Web SDK" config URL.
+# Public value (the app key is in the URL); safe as NEXT_PUBLIC_.
+NEXT_PUBLIC_FARO_COLLECTOR_URL=
+NEXT_PUBLIC_FARO_APP_NAME=tanwir-admin        # optional
+NEXT_PUBLIC_FARO_ENVIRONMENT=production        # optional
+```
+
+> **Netlify note:** these apps run as serverless functions that freeze between requests, so under very low traffic a tail of backend spans/metrics can be delayed or dropped on flush. Faro (browser-side) is unaffected.

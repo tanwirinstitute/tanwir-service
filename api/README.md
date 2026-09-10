@@ -63,6 +63,27 @@ curl -X POST http://localhost:3005/api/discount-codes \
   -d '{"programCode": "YP", "discountPercentage": 75}'
 ```
 
+## Telemetry
+
+OpenTelemetry in `src/instrumentation.ts` (traces via [`@vercel/otel`](https://www.npmjs.com/package/@vercel/otel)) + `src/lib/telemetry.ts` (metrics), exporting to the **Grafana Cloud OTLP gateway**. Traces cover route handlers and outbound `fetch` (the Squarespace Discounts API). No-op until the `GRAFANA_OTLP_*` trio is set.
+
+Add to `.env`:
+
+```
+# Grafana Cloud → Connections → "OpenTelemetry (OTLP)": endpoint, numeric
+# instance ID, and an access-policy token with metrics:write + traces:write.
+GRAFANA_OTLP_ENDPOINT=https://otlp-gateway-<zone>.grafana.net/otlp
+GRAFANA_OTLP_INSTANCE_ID=
+GRAFANA_OTLP_TOKEN=
+OTEL_DEPLOYMENT_ENVIRONMENT=production   # optional; defaults to NODE_ENV
+```
+
+Or set the standard `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_HEADERS` directly — those win over the trio.
+
+Custom metric: `api.discount_code.create` — counter per `POST /api/discount-codes`, tagged `outcome` (`created` / `rejected` = Squarespace 4xx / `error`).
+
+> **Netlify note:** serverless functions freeze between requests, so under very low traffic a tail of spans/metrics can be delayed or dropped on flush.
+
 ## API docs
 
 Swagger UI is served at `/docs` (reads the spec from `/openapi.json`).

@@ -52,6 +52,22 @@ export function describeGmailError(error: GmailError): string {
   return `Gmail API responded ${error.status}`;
 }
 
+/**
+ * The bare Gmail `reason` slug (e.g. `rateLimitExceeded`,
+ * `userRateLimitExceeded`, `dailyLimitExceeded`) for use as a low-cardinality
+ * metric/span attribute. Falls back to the HTTP status when Gmail didn't
+ * name a reason. Never returns free text — keep this label bounded.
+ */
+export function gmailErrorReason(error: GmailError): string {
+  const body = error.body as
+    | { error?: { errors?: Array<{ reason?: string }> } }
+    | string
+    | undefined;
+  const reason =
+    typeof body === "object" ? body?.error?.errors?.find((e) => e.reason)?.reason : undefined;
+  return reason || `http_${error.status}`;
+}
+
 function formatAddress(recipient: GmailRecipient): string {
   return recipient.name ? `"${recipient.name}" <${recipient.email}>` : recipient.email;
 }

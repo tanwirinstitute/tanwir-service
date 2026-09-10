@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { generateDiscountCode } from "@/lib/discountCode";
 import { createDiscount, SquarespaceApiError } from "@/lib/squarespace";
+import { discountCreateCounter } from "@/lib/telemetry";
 
 interface CreateDiscountCodeRequest {
   type?: string;
@@ -70,6 +71,7 @@ export async function POST(request: NextRequest) {
         maxUsesAllowed: body.maxUsesAllowed,
       });
 
+      discountCreateCounter.add(1, { outcome: "created" });
       return NextResponse.json({ success: true, code, discount });
     } catch (error) {
       // Random 4-char suffix collided with an existing code for the same
@@ -82,11 +84,13 @@ export async function POST(request: NextRequest) {
 
       console.error("Failed to create Squarespace discount:", error);
       if (error instanceof SquarespaceApiError) {
+        discountCreateCounter.add(1, { outcome: "rejected" });
         return NextResponse.json(
           { success: false, message: "Squarespace API rejected the discount", error: error.payload ?? error.message },
           { status: error.status }
         );
       }
+      discountCreateCounter.add(1, { outcome: "error" });
       return NextResponse.json(
         { success: false, message: "Failed to create discount", error: (error as Error).message },
         { status: 500 }

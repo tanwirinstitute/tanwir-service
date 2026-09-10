@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
-import { sendGmailEmail, isValidEmail, GmailError, describeGmailError } from "@/lib/gmail";
+import { sendGmailEmail, isValidEmail, GmailError, describeGmailError, gmailErrorReason } from "@/lib/gmail";
+import { gmailSendCounter, gmailSendDuration } from "@/lib/telemetry";
 
 interface BlastRecipient {
   email: string;
@@ -45,6 +46,7 @@ async function sendToRecipient(
   senderName?: string,
   senderEmail?: string
 ): Promise<RecipientResult> {
+  const startedAt = performance.now();
   try {
     await sendGmailEmail({
       to: [{ email: recipient.email, name: recipient.name || recipient.email }],
@@ -53,9 +55,15 @@ async function sendToRecipient(
       senderName,
       senderEmail,
     });
+    gmailSendCounter.add(1, { outcome: "sent" });
+    gmailSendDuration.record(performance.now() - startedAt, { outcome: "sent" });
     return { email: recipient.email, success: true };
   } catch (error) {
-    const message = error instanceof GmailError ? describeGmailError(error) : (error as Error).message;
+    const isGmail = error instanceof GmailError;
+    const message = isGmail ? describeGmailError(error) : (error as Error).message;
+    const reason = isGmail ? gmailErrorReason(error) : "exception";
+    gmailSendCounter.add(1, { outcome: "failed", reason });
+    gmailSendDuration.record(performance.now() - startedAt, { outcome: "failed", reason });
     return { email: recipient.email, success: false, error: message };
   }
 }

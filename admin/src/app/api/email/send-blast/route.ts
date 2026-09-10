@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/session";
 import { sendBlastBatch, type BlastRecipient } from "@/server/mailApi";
 import { wrapBrandedEmail } from "@/server/emailTemplate";
+import { blastBatchCounter } from "@/lib/telemetry";
 
 // Must match emailer's own MAX_BATCH_SIZE (send-blast-email/route.ts) — this
 // endpoint is called once per batch by the Email Console's client-side loop.
@@ -42,9 +43,11 @@ export async function POST(request: NextRequest) {
       subject: body.subject,
       htmlContent: wrapBrandedEmail(body.bodyHtml),
     });
+    blastBatchCounter.add(1, { outcome: result.failed > 0 ? "partial" : "sent" });
     return NextResponse.json({ success: true, ...result });
   } catch (error) {
     console.error("Failed to send email batch:", error);
+    blastBatchCounter.add(1, { outcome: "error" });
     return NextResponse.json(
       { success: false, message: "Failed to send email batch", error: (error as Error).message },
       { status: 500 }

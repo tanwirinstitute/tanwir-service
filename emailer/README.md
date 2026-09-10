@@ -19,6 +19,31 @@ Swagger UI is served at `/docs` (reads the spec from `/openapi.json`).
 
 Every `POST /api/send-*` endpoint requires `Authorization: Bearer <MAIL_API_TOKEN>`. `GET /api/health` is open.
 
+## Telemetry
+
+OpenTelemetry is wired up in `src/instrumentation.ts` (traces via [`@vercel/otel`](https://www.npmjs.com/package/@vercel/otel)) and `src/lib/telemetry.ts` (metrics), both exporting to the **Grafana Cloud OTLP gateway**. Traces cover Next.js route handlers, RSC renders, and outbound `fetch` (i.e. the Gmail API calls). It's a no-op until the `GRAFANA_OTLP_*` trio is set, so local dev and preview builds export nothing.
+
+Add to `.env`:
+
+```
+# Grafana Cloud → Connections → "OpenTelemetry (OTLP)" — copy the endpoint,
+# the numeric instance ID, and an access-policy token with metrics:write +
+# traces:write. Leave any of the three blank to disable telemetry.
+GRAFANA_OTLP_ENDPOINT=https://otlp-gateway-<zone>.grafana.net/otlp
+GRAFANA_OTLP_INSTANCE_ID=
+GRAFANA_OTLP_TOKEN=
+OTEL_DEPLOYMENT_ENVIRONMENT=production   # optional; defaults to NODE_ENV
+```
+
+The trio is built into an HTTP Basic auth header for you (`instanceID:token`, base64). You can instead set the standard `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_HEADERS` directly and they'll take precedence.
+
+Custom metrics (OTLP → Grafana Cloud Prometheus), on top of the request/duration data Grafana can derive from traces:
+
+- `email.gmail.send` — counter per individual Gmail send from `POST /api/send-blast-email`, tagged `outcome` (`sent` / `failed`) and, on failure, `reason` (the Gmail slug: `rateLimitExceeded`, `userRateLimitExceeded` — transient; `dailyLimitExceeded` — a hard 24h stop). This is the one to chart when the Email Console starts throwing 403s.
+- `email.gmail.send.duration` — histogram (ms) of a single send, same tags.
+
+> **Netlify note:** these apps run as serverless functions, which freeze between requests. The batch span processor and 60s metric reader flush on the next thaw, so under very low traffic a tail of spans/metrics can be delayed or dropped. Tune with `OTEL_BSP_SCHEDULE_DELAY`, or point at a co-located OpenTelemetry Collector if it matters.
+
 ## Endpoints
 
 - `POST /api/send-financial-aid-email` — `{ recipientEmail, studentName, discountPercentage, discountCode, programName, additionalDetails? }`

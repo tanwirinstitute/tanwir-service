@@ -27,3 +27,7 @@ npm install && npm run dev          # gateway, :3000
 ```
 
 To test subdomain routing locally, add entries to `/etc/hosts` (e.g. `127.0.0.1 email.localhost`) and hit the gateway with that host, or set the relevant `*_ORIGIN` env var and send a request with a matching `Host` header.
+
+## Telemetry
+
+`emailer/`, `admin/`, and `api/` ship OpenTelemetry (traces + metrics) to the **Grafana Cloud OTLP gateway** via `@vercel/otel`, and `admin/` also runs **Grafana Faro** browser RUM. Each app's `## Telemetry` README section has the setup; all of it is a no-op until the `GRAFANA_OTLP_*` env trio (and, for Faro, `NEXT_PUBLIC_FARO_COLLECTOR_URL`) is populated on the deploy. The gateway (`/`) and `tlp/` are not instrumented.
