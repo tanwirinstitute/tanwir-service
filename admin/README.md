@@ -17,7 +17,7 @@ Internal ops app for Tanwir Institute. Deployed at `admin.tanwir.institute`, rea
 
 1. Install dependencies: `npm install`
 2. Create a `.env` with:
-   - `FIREBASE_SERVICE_ACCOUNT_BASE64` — same Firebase project as `consent/`
+   - `FIREBASE_SERVICE_ACCOUNT_BASE64` — the `tanwir-students` Firebase project
    - `SQUARESPACE_API_KEY` — Settings > Advanced > API Keys, needs Orders read scope
    - `SYNC_API_TOKEN` — shared secret required on `POST /api/sync-courses`
    - `ADMIN_TOKEN` — shared secret required on `/dashboard?token=...`
@@ -35,8 +35,14 @@ In production, a GitHub Actions cron (`.github/workflows/sync-courses.yml`, repo
 
 ## Admin dashboard
 
-`/dashboard?token=<ADMIN_TOKEN>` — live student/course list with search, and a per-course "mark materials picked up" toggle. No login screen: the URL token is validated server-side (`src/server/adminAuth.ts`, same fail-closed-404 pattern as `consent/admin`), which mints a Firebase custom token (`src/server/customToken.ts`) carrying an `admin` claim. The dashboard client signs in with that token and opens live Firestore listeners (`onSnapshot`) on `students` and a `courses` collection group, so changes — a new signup from the sync job, another admin marking a pickup — appear immediately without a refresh.
+`/dashboard?token=<ADMIN_TOKEN>` — live student/course list with search, and a per-course "mark materials picked up" toggle. No login screen: the URL token is validated server-side (`src/server/adminAuth.ts`, a fail-closed-404 pattern), which mints a Firebase custom token (`src/server/customToken.ts`) carrying an `admin` claim. The dashboard client signs in with that token and opens live Firestore listeners (`onSnapshot`) on `students` and a `courses` collection group, so changes — a new signup from the sync job, another admin marking a pickup — appear immediately without a refresh.
 
 There's no per-admin identity (everyone shares the one dashboard link), so "picked up" only records *that* it happened and *when* (`materialsPickedUpAt`), not *who* marked it.
 
 Firestore access for the dashboard is governed by `../firestore.rules` (repo root — Firestore rules are project-wide, not per-app) and deployed with `firebase deploy --only firestore:rules --project tanwir-students`. It only grants the `admin`-claim custom token read/write on `students` and `students/*/courses`; everything else is denied by default. `firebase-admin` (used by the sync job and everywhere else server-side) bypasses these rules entirely — they only matter for this dashboard's direct client access.
+
+## Email Console
+
+`/email` — compose a rich-text message, pick an audience (all students, or a course/term), preview the exact recipient list, send a test to yourself, then blast. Sends go out through the emailer service (`../emailer`, `POST /api/send-blast-email`) one Gmail message per recipient, chunked into batches of 25 by the client.
+
+Every blast is logged to the `emailSends` Firestore collection (written and read only server-side via `firebase-admin` in `src/server/emailHistory.ts` — no `firestore.rules` entry needed, the project-wide default deny covers it). The **History** tab lists recent sends with per-send delivered/failed counts; when Gmail rejected some recipients (intermittent 403s under rate/quota pressure), each failure shows the reason and a **Retry failed** button re-sends the same content to just those recipients (`POST /api/email/retry`), recording the attempt as its own history entry linked back via `retryOf`. Retrying is safe to repeat — it only ever targets the recipients still marked failed.

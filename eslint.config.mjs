@@ -13,7 +13,6 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     // Sibling apps: each has its own lint config and build output.
-    "consent/**",
     "emailer/**",
     "admin/**",
     "tlp/**",

@@ -9,7 +9,6 @@ import { NextRequest, NextResponse } from "next/server";
  * to this app's own pages.
  */
 const ZONE_ORIGINS: Record<string, string | undefined> = {
-  consent: process.env.CONSENT_ORIGIN,
   email: process.env.EMAIL_ORIGIN,
   admin: process.env.ADMIN_ORIGIN,
   tlp: process.env.TLP_ORIGIN,

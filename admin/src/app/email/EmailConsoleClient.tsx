@@ -5,12 +5,22 @@ import Image from "next/image";
 import Link from "next/link";
 import SignOutButton from "../SignOutButton";
 import RichTextEditor from "./RichTextEditor";
+import SendHistory from "./SendHistory";
 import type { CourseCatalogEntry, SectionCatalogEntry } from "@/server/recipients";
 
 interface Recipient {
   email: string;
   name: string | null;
 }
+
+interface HistoryRecipient {
+  email: string;
+  name: string | null;
+  status: "sent" | "failed";
+  error?: string;
+}
+
+type ConsoleView = "compose" | "history";
 
 interface RecipientResult {
   email: string;
@@ -76,6 +86,10 @@ interface Props {
 }
 
 export default function EmailConsoleClient({ adminEmail, courses, sections }: Props) {
+  const [view, setView] = useState<ConsoleView>("compose");
+  // Bumped after every recorded send so the History view refetches.
+  const [historyKey, setHistoryKey] = useState(0);
+
   const [audienceType, setAudienceType] = useState<AudienceType>("all");
   const [courseId, setCourseId] = useState("");
   const [sectionKey, setSectionKey] = useState("");
@@ -88,6 +102,7 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
 
   const [sendPhase, setSendPhase] = useState<SendPhase>("idle");
   const [progress, setProgress] = useState<Progress | null>(null);
+  const [historySaved, setHistorySaved] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [previewRecipients, setPreviewRecipients] = useState<Recipient[] | null>(null);
@@ -197,8 +212,39 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
     setSendPhase("confirming");
   }, [previewRecipients]);
 
+  // Fire-and-forget: persist what actually went out so it shows in History
+  // and its failures can be retried later. A logging failure must never mask
+  // a send that already happened, so this only surfaces a soft warning.
+  const recordHistory = useCallback(
+    async (recipients: Recipient[], failures: RecipientResult[], label: string) => {
+      const errorByEmail = new Map(failures.map((f) => [f.email, f.error]));
+      const failedEmails = new Set(failures.map((f) => f.email));
+      const payload: HistoryRecipient[] = recipients.map((r) =>
+        failedEmails.has(r.email)
+          ? { email: r.email, name: r.name, status: "failed", error: errorByEmail.get(r.email) || "send failed" }
+          : { email: r.email, name: r.name, status: "sent" }
+      );
+      try {
+        const res = await fetch("/api/email/history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subject, bodyHtml, audienceLabel: label, recipients: payload }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || `Request failed (${res.status})`);
+        setHistoryKey((k) => k + 1);
+        return true;
+      } catch (err) {
+        console.error("Failed to record send to history:", err);
+        return false;
+      }
+    },
+    [subject, bodyHtml]
+  );
+
   const confirmBlast = useCallback(async () => {
     const recipients = previewRecipients ?? [];
+    const label = audienceLabel;
     setSendPhase("sending");
     const batches = chunk(recipients, BATCH_SIZE);
     const runningProgress: Progress = { total: recipients.length, sent: 0, failed: 0, failures: [] };
@@ -228,12 +274,15 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
       setProgress({ ...runningProgress });
     }
 
+    const recorded = await recordHistory(recipients, runningProgress.failures, label);
+    setHistorySaved(recorded);
     setSendPhase("done");
-  }, [previewRecipients, subject, bodyHtml]);
+  }, [previewRecipients, audienceLabel, subject, bodyHtml, recordHistory]);
 
   const startOver = useCallback(() => {
     setSendPhase("idle");
     setProgress(null);
+    setHistorySaved(true);
     setSubject("");
     setBodyHtml("");
     setTestStatus("idle");
@@ -253,7 +302,31 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
         <SignOutButton />
       </header>
 
-      {sendPhase === "done" && progress ? (
+      <div className="ec-viewtabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "compose"}
+          className={view === "compose" ? "ec-viewtab active" : "ec-viewtab"}
+          onClick={() => setView("compose")}
+        >
+          Compose
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "history"}
+          className={view === "history" ? "ec-viewtab active" : "ec-viewtab"}
+          onClick={() => setView("history")}
+          disabled={sendPhase === "sending"}
+        >
+          History
+        </button>
+      </div>
+
+      {view === "history" ? (
+        <SendHistory refreshKey={historyKey} />
+      ) : sendPhase === "done" && progress ? (
         <div className="ec-panel ec-summary">
           <h2>Send complete</h2>
           <p>
@@ -273,6 +346,13 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
               </ul>
             </div>
           )}
+          <p className="ec-hint">
+            {historySaved
+              ? progress.failed > 0
+                ? "Saved to History — you can retry the failed recipients from there."
+                : "Saved to History."
+              : "Heads up: this send couldn't be saved to History, so its failures can't be retried later."}
+          </p>
           <button type="button" className="ec-btn ec-btn-primary" onClick={startOver}>
             Compose another email
           </button>
@@ -440,7 +520,7 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
         </div>
       )}
 
-      {sendPhase === "confirming" && (
+      {view === "compose" && sendPhase === "confirming" && (
         <div className="ec-modal-backdrop">
           <div className="ec-modal">
             <h2>Send to {previewRecipients?.length ?? 0} students?</h2>
@@ -459,7 +539,7 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
         </div>
       )}
 
-      {sendPhase === "sending" && progress && (
+      {view === "compose" && sendPhase === "sending" && progress && (
         <div className="ec-modal-backdrop">
           <div className="ec-modal">
             <h2>Sending…</h2>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
-import { sendGmailEmail, isValidEmail, GmailError } from "@/lib/gmail";
+import { sendGmailEmail, isValidEmail, GmailError, describeGmailError } from "@/lib/gmail";
 
 interface BlastRecipient {
   email: string;
@@ -55,7 +55,7 @@ async function sendToRecipient(
     });
     return { email: recipient.email, success: true };
   } catch (error) {
-    const message = error instanceof GmailError ? `Gmail API responded ${error.status}` : (error as Error).message;
+    const message = error instanceof GmailError ? describeGmailError(error) : (error as Error).message;
     return { email: recipient.email, success: false, error: message };
   }
 }

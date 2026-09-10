@@ -25,6 +25,33 @@ export class GmailError extends Error {
   }
 }
 
+/**
+ * Turns a GmailError into a short, actionable string. Gmail's send failures —
+ * especially 403s — carry the real cause (rate limit vs. daily quota vs.
+ * permission) only in the response body's `error.errors[].reason` /
+ * `error.message`; without surfacing it a caller just sees "403" and can't
+ * tell a transient throttle (worth retrying) from a hard quota stop.
+ */
+export function describeGmailError(error: GmailError): string {
+  const body = error.body as
+    | { error?: { message?: string; errors?: Array<{ reason?: string; message?: string }> } }
+    | string
+    | undefined;
+
+  if (typeof body === "string" && body.trim()) {
+    return `Gmail ${error.status}: ${body.trim()}`;
+  }
+
+  const inner = typeof body === "object" ? body?.error : undefined;
+  const reason = inner?.errors?.find((e) => e.reason)?.reason;
+  const message = inner?.message || inner?.errors?.find((e) => e.message)?.message;
+
+  if (reason && message) return `Gmail ${error.status} (${reason}): ${message}`;
+  if (message) return `Gmail ${error.status}: ${message}`;
+  if (reason) return `Gmail ${error.status} (${reason})`;
+  return `Gmail API responded ${error.status}`;
+}
+
 function formatAddress(recipient: GmailRecipient): string {
   return recipient.name ? `"${recipient.name}" <${recipient.email}>` : recipient.email;
 }

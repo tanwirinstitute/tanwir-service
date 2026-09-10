@@ -152,7 +152,10 @@ service cloud.firestore {
       allow read, write: if isDashboardAdmin();
     }
 
-    // Default deny for all other collections
+    // Default deny for all other collections. Note: the Email Console's
+    // `emailSends` log (admin/src/server/emailHistory.ts) lives here on
+    // purpose — it's only ever touched by firebase-admin server-side, so the
+    // default deny is the correct rule for it and no client ever reads it.
     match /{document=**} {
       allow read, write: if false;
     }

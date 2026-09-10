@@ -79,35 +79,6 @@ export const openApiSpec = {
         },
       },
     },
-    "/api/send-zakat-consent-email": {
-      post: {
-        summary: "Send the Zakat funding consent email",
-        description: "Used by the consent app to ask an applicant to consent to Zakat funding.",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                required: ["recipientEmail", "studentName", "programName", "consentLink"],
-                properties: {
-                  recipientEmail: { type: "string", format: "email" },
-                  studentName: { type: "string" },
-                  programName: { type: "string" },
-                  consentLink: { type: "string", format: "uri" },
-                },
-              },
-            },
-          },
-        },
-        responses: {
-          "200": { description: "Sent", content: { "application/json": { schema: sendResult } } },
-          "400": { description: "Missing or invalid fields", content: { "application/json": { schema: errorResult } } },
-          "401": { description: "Missing/invalid bearer token", content: { "application/json": { schema: errorResult } } },
-          "500": { description: "Gmail send failed", content: { "application/json": { schema: errorResult } } },
-        },
-      },
-    },
     "/api/send-financial-aid-email": {
       post: {
         summary: "Send the financial aid approval + discount code email",

@@ -1415,6 +1415,160 @@ button {
   color: var(--danger-text);
 }
 
+/* Compose / History view tabs */
+
+.ec-viewtabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.ec-viewtab {
+  padding: 0.55rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--gray-500);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+}
+
+.ec-viewtab:hover:not(:disabled) {
+  color: var(--gray-700);
+}
+
+.ec-viewtab:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ec-viewtab.active {
+  color: var(--brand-green);
+  border-bottom-color: var(--brand-green);
+}
+
+.ec-btn-sm {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+/* Send history */
+
+.ec-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.9rem;
+}
+
+.ec-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ec-history-item {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.ec-history-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  background: #fff;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ec-history-row:hover {
+  background: var(--gray-50);
+}
+
+.ec-history-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.ec-history-subject {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--brand-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ec-history-meta {
+  font-size: 0.76rem;
+  color: var(--gray-500);
+}
+
+.ec-history-counts {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.ec-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.ec-badge-ok {
+  background: var(--brand-green-tint);
+  color: var(--brand-green);
+}
+
+.ec-badge-fail {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+.ec-history-detail {
+  padding: 0.75rem 0.9rem 0.9rem;
+  border-top: 1px solid var(--gray-200);
+  background: var(--gray-50);
+}
+
+.ec-history-failures {
+  list-style: none;
+  margin: 0.4rem 0 0.8rem;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 0.8rem;
+}
+
+.ec-history-failures li {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.ec-history-failures li:last-child {
+  border-bottom: none;
+}
+
+.ec-history-err {
+  color: var(--danger-text);
+}
+
 /* Rich text editor */
 
 .rte-shell {
