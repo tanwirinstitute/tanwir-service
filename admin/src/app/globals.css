@@ -75,6 +75,13 @@ button {
   gap: 0.75rem;
 }
 
+.dashboard-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
 .brand-logo {
   flex-shrink: 0;
   width: 2.35rem;
@@ -616,6 +623,32 @@ button {
 
 .course-table tbody tr:last-child td {
   border-bottom: none;
+}
+
+/* Term cell for a "Full Year" enrollment split into Fall + Spring sessions
+   (see @/lib/courseSessions) — two small pills instead of one opaque
+   "Full Year" label, so it's visible at a glance that the student needs
+   both sessions' materials. */
+.term-sessions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.term-pill {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--brand-green);
+  background: var(--brand-green-tint);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  white-space: nowrap;
+}
+
+.term-year {
+  font-size: 0.83rem;
+  color: var(--gray-700);
 }
 
 .col-detail {

@@ -10,6 +10,8 @@ import { getClientAuth, getClientDb } from "@/lib/firebaseClient";
 import SignOutButton from "../SignOutButton";
 import { ACTIVE_REGISTRATION_ACADEMIC_YEAR, isAcademicYearAtOrAfter } from "@/server/academicTerm";
 import { courseGroupName } from "@/lib/coursePrograms";
+import { courseSessions } from "@/lib/courseSessions";
+import { buildAttendanceWorkbook, downloadBlob } from "./exportAttendance";
 import type { CourseRecord, StudentRecord } from "@/types/student";
 
 type CourseWithId = CourseRecord & { id: string };
@@ -253,6 +255,7 @@ export default function DashboardClient() {
   const [courseFilter, setCourseFilter] = useState<string>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [pending, setPending] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
 
   const signOutAndRedirect = useCallback(async () => {
     // Best-effort clear of the httpOnly cookie, then the client session.
@@ -389,6 +392,22 @@ export default function DashboardClient() {
     return { total: needsPickup + pickedUp, needsPickup, pickedUp };
   }, [rows]);
 
+  // Builds one attendance sheet per (course, session, academic year) from
+  // exactly what's currently on screen — respects the search box and every
+  // filter above, same as the table below it.
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      const blob = await buildAttendanceWorkbook(rows);
+      const dateStr = new Date().toISOString().slice(0, 10);
+      downloadBlob(blob, `tanwir-attendance-${dateStr}.xlsx`);
+    } catch (error) {
+      console.error("Failed to build attendance export:", error);
+    } finally {
+      setExporting(false);
+    }
+  }, [rows]);
+
   async function togglePickup(studentId: string, course: CourseWithId) {
     const key = `${studentId}/${course.id}`;
     const nextPickedUp = !course.materialsPickedUp;
@@ -442,7 +461,18 @@ export default function DashboardClient() {
             <p className="dashboard-subtitle">Track course registrations and materials pickup</p>
           </div>
         </Link>
-        <SignOutButton />
+        <div className="dashboard-header-actions">
+          <button
+            type="button"
+            className="ec-btn"
+            onClick={handleExport}
+            disabled={exporting || rows.length === 0}
+            title="Exports the students/courses currently shown below, one attendance tab per course session"
+          >
+            {exporting ? "Exporting…" : "Export attendance"}
+          </button>
+          <SignOutButton />
+        </div>
       </header>
 
       <div className="stat-grid">
@@ -611,12 +641,29 @@ export default function DashboardClient() {
                                 const detail = courseDetail(course);
                                 const pickedUpAt = formatTimestamp(course.materialsPickedUpAt);
                                 const isPending = pending.has(key);
+                                const sessions = courseSessions(course.productName, course.semester);
 
                                 return (
                                   <tr key={course.id}>
                                     <td className="col-course-name" data-label="Course">{course.productName}</td>
                                     <td className="col-term" data-label="Term">
-                                      {course.semester} · {course.academicYear}
+                                      {sessions.length > 1 ? (
+                                        <span
+                                          className="term-sessions"
+                                          title={`${course.semester} enrollment — separate Fall and Spring materials/attendance`}
+                                        >
+                                          {sessions.map((s) => (
+                                            <span key={s.semester} className="term-pill">
+                                              {s.semester}
+                                            </span>
+                                          ))}
+                                          <span className="term-year">{course.academicYear}</span>
+                                        </span>
+                                      ) : (
+                                        <>
+                                          {course.semester} · {course.academicYear}
+                                        </>
+                                      )}
                                     </td>
                                     <td className="col-detail" data-label="Details">{detail || "—"}</td>
                                     <td className="col-purchased" data-label="Purchased">{formatDate(course.purchasedOn)}</td>

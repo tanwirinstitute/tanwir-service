@@ -41,6 +41,14 @@ There's no per-admin identity (everyone shares the one dashboard link), so "pick
 
 Firestore access for the dashboard is governed by `../firestore.rules` (repo root — Firestore rules are project-wide, not per-app) and deployed with `firebase deploy --only firestore:rules --project tanwir-students`. It only grants the `admin`-claim custom token read/write on `students` and `students/*/courses`; everything else is denied by default. `firebase-admin` (used by the sync job and everywhere else server-side) bypasses these rules entirely — they only matter for this dashboard's direct client access.
 
+### Fall/Spring sessions
+
+Prophetic Guidance, Taqwa for Teens, and Advanced Studies sell a single "Full Year" product that actually spans two sessions with separate class meetings and separate materials (alongside a Fall-only option, and eventually a Spring-only one for latecomers). `src/lib/courseSessions.ts` expands a "Full Year" enrollment in one of those three programs into both a Fall and a Spring session at read time — it never touches the stored course record, which still has one purchase = one Firestore doc. The dashboard's Term column shows this as two pills ("Fall" "Spring") instead of one opaque "Full Year" label; the attendance export (below) uses the same expansion, so a Full Year student lands on both sessions' rosters.
+
+### Attendance export
+
+**Export attendance** (dashboard header) downloads an `.xlsx` workbook of exactly what's currently on screen — it follows the search box and every filter, so narrow to what you want first. One tab per (course, session, academic year): course names are the term-stripped but *not* program-rolled-up form (`normalizeCourseName` — so e.g. "Foundations Year 1" and "The Journey" get separate tabs, unlike the Course filter's dropdown, which groups a whole program together), each listing Name/Email/Phone/Gender/Student Type. Built entirely client-side (`src/app/dashboard/exportAttendance.ts`, via [`exceljs`](https://www.npmjs.com/package/exceljs) code-split into its own chunk) from the data the live Firestore listeners already loaded — no server round trip.
+
 ## Email Console
 
 `/email` — compose a rich-text message, pick an audience (all students, or a course/term), preview the exact recipient list, send a test to yourself, then blast. Sends go out through the emailer service (`../emailer`, `POST /api/send-blast-email`) one Gmail message per recipient, chunked into batches of 25 by the client.
