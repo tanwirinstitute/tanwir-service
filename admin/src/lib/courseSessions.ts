@@ -1,4 +1,5 @@
 import { normalizeCourseName, programForCourse } from "./coursePrograms";
+import type { CourseRecord } from "@/types/student";
 
 /**
  * Programs that sell a single "Full Year" product spanning two
@@ -46,4 +47,66 @@ export function courseSessions(productName: string, semester: string): CourseSes
     { semester: "Fall", derived: true },
     { semester: "Spring", derived: true },
   ];
+}
+
+/** Fall < Spring < Summer < Full Year < anything else (alphabetical) — a
+ * stable display/tab order shared by the dashboard's course-detail table
+ * and the attendance export. */
+const SEMESTER_ORDER = ["Fall", "Spring", "Summer", "Full Year"];
+export function semesterRank(semester: string): number {
+  const i = SEMESTER_ORDER.indexOf(semester);
+  return i === -1 ? SEMESTER_ORDER.length : i;
+}
+
+export interface SessionPickupState {
+  pickedUp: boolean;
+  pickedUpAt: unknown;
+}
+
+type PickupFields = Pick<CourseRecord, "materialsPickup" | "materialsPickedUp" | "materialsPickedUpAt">;
+
+/**
+ * A course's pickup state for one specific session, honoring the legacy
+ * flat materialsPickedUp/At fields for a course that predates the
+ * per-session materialsPickup map (see types/student.ts). The legacy flag
+ * only ever carries over to a course's *first* session (`isFirstSession`) —
+ * for an ordinary single-session course that's the only session there is,
+ * so nothing changes; for a Full Year split course it means only Fall
+ * inherits an old "picked up" mark, and Spring starts unmarked rather than
+ * silently showing as already done for a session nobody's handed out yet.
+ */
+export function getSessionPickup(course: PickupFields, semester: string, isFirstSession: boolean): SessionPickupState {
+  const fromMap = course.materialsPickup?.[semester];
+  if (fromMap) return fromMap;
+  if (isFirstSession && course.materialsPickedUp) {
+    return { pickedUp: true, pickedUpAt: course.materialsPickedUpAt ?? null };
+  }
+  return { pickedUp: false, pickedUpAt: null };
+}
+
+export interface CourseSessionEntry<TCourse> {
+  course: TCourse;
+  semester: string;
+  derived: boolean;
+  pickedUp: boolean;
+  pickedUpAt: unknown;
+}
+
+/**
+ * The full session-entry expansion of one course record — courseSessions
+ * plus each session's resolved pickup state. This is the unit everything
+ * that isn't "one raw course doc" (the dashboard's course-detail rows and
+ * status filter/stats, the attendance export) should actually work with,
+ * since a Full Year split course is really two independent things: two
+ * sessions, two pickup states, two attendance rosters, one purchase.
+ */
+export function courseSessionEntries<TCourse extends { productName: string; semester: string } & PickupFields>(
+  course: TCourse
+): CourseSessionEntry<TCourse>[] {
+  return courseSessions(course.productName, course.semester).map((session, index) => ({
+    course,
+    semester: session.semester,
+    derived: session.derived,
+    ...getSessionPickup(course, session.semester, index === 0),
+  }));
 }

@@ -636,30 +636,21 @@ button {
   color: var(--brand-green);
 }
 
-/* Term cell for a "Full Year" enrollment split into Fall + Spring sessions
-   (see @/lib/courseSessions) — two small pills instead of one opaque
-   "Full Year" label, so it's visible at a glance that the student needs
-   both sessions' materials. */
-.term-sessions {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  flex-wrap: wrap;
-}
-
-.term-pill {
-  font-size: 0.7rem;
+/* Term cell for a session split out of a single "Full Year" purchase (see
+   @/lib/courseSessions) — each session already gets its own row now, so
+   this is just a small marker explaining why there are two rows for what
+   was one checkout, with independently-tracked pickup/attendance. */
+.term-derived-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  font-size: 0.68rem;
   font-weight: 600;
   color: var(--brand-green);
   background: var(--brand-green-tint);
   border-radius: 999px;
   padding: 0.1rem 0.5rem;
   white-space: nowrap;
-}
-
-.term-year {
-  font-size: 0.83rem;
-  color: var(--gray-700);
+  vertical-align: middle;
 }
 
 .col-detail {

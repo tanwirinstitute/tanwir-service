@@ -1,8 +1,15 @@
 import { normalizeCourseName } from "@/lib/coursePrograms";
-import { courseSessions } from "@/lib/courseSessions";
+import { semesterRank } from "@/lib/courseSessions";
 import { enrolleeNames } from "@/lib/enrolleeNames";
 
-export interface AttendanceCourseEntry {
+/**
+ * One already-resolved (course, session) pair — the dashboard computes
+ * these via courseSessionEntries, so a Full Year split course already
+ * arrives here as two separate entries (Fall, Spring), each with its own
+ * `semester`. This module just groups and exports; it doesn't re-derive
+ * sessions itself.
+ */
+export interface AttendanceSessionEntry {
   productName: string;
   semester: string;
   academicYear: string;
@@ -16,7 +23,7 @@ export interface AttendanceStudent {
   lastName: string | null;
   email: string;
   phone: string | null;
-  matchingCourses: AttendanceCourseEntry[];
+  matchingSessions: AttendanceSessionEntry[];
 }
 
 interface RosterRow {
@@ -60,53 +67,44 @@ function uniqueSheetName(base: string, used: Set<string>): string {
   }
 }
 
-/** Fall < Spring < Summer < Full Year < anything else (alphabetical), for a stable tab order. */
-const SEMESTER_ORDER = ["Fall", "Spring", "Summer", "Full Year"];
-function semesterRank(semester: string): number {
-  const i = SEMESTER_ORDER.indexOf(semester);
-  return i === -1 ? SEMESTER_ORDER.length : i;
-}
-
 function studentName(student: AttendanceStudent): string {
   return [student.firstName, student.lastName].filter(Boolean).join(" ").trim() || student.email;
 }
 
 /**
- * Flattens the given students/courses into one roster group per (course,
- * session, academic year) — a "Full Year" enrollment in a split-session
- * program (courseSessions) lands in both its Fall and Spring group, so a
- * student who bought the whole year shows up on both tabs' rosters, each
- * with its own attendance sheet.
+ * Flattens the given students/sessions into one roster group per (course,
+ * session, academic year) — a Full Year split course already arrives as two
+ * separate session entries (see AttendanceSessionEntry), so a student who
+ * bought the whole year lands on both tabs' rosters without any splitting
+ * logic here.
  */
 function groupForAttendance(students: AttendanceStudent[]): CourseGroup[] {
   const groups = new Map<string, CourseGroup>();
 
   for (const student of students) {
-    for (const course of student.matchingCourses) {
-      const courseName = normalizeCourseName(course.productName);
-      for (const session of courseSessions(course.productName, course.semester)) {
-        const key = `${courseName}__${course.academicYear}__${session.semester}`;
-        let group = groups.get(key);
-        if (!group) {
-          group = { courseName, semester: session.semester, academicYear: course.academicYear, rows: [] };
-          groups.set(key, group);
-        }
-        // A purchase can register more than one person (a parent buying
-        // Taqwa for Teens for several kids in one checkout) — one roster row
-        // per named enrollee, each still carrying the purchaser's own
-        // contact info since that's who checkout actually captured it from.
-        // Falls back to the purchaser's own name when the course carries no
-        // such answer (most courses, and most Taqwa purchases too).
-        const names = enrolleeNames(course.formResponses);
-        for (const name of names.length > 0 ? names : [studentName(student)]) {
-          group.rows.push({
-            name,
-            email: student.email,
-            phone: student.phone || "",
-            gender: course.gender || "",
-            studentType: course.studentType || "",
-          });
-        }
+    for (const session of student.matchingSessions) {
+      const courseName = normalizeCourseName(session.productName);
+      const key = `${courseName}__${session.academicYear}__${session.semester}`;
+      let group = groups.get(key);
+      if (!group) {
+        group = { courseName, semester: session.semester, academicYear: session.academicYear, rows: [] };
+        groups.set(key, group);
+      }
+      // A purchase can register more than one person (a parent buying
+      // Taqwa for Teens for several kids in one checkout) — one roster row
+      // per named enrollee, each still carrying the purchaser's own
+      // contact info since that's who checkout actually captured it from.
+      // Falls back to the purchaser's own name when the course carries no
+      // such answer (most courses, and most Taqwa purchases too).
+      const names = enrolleeNames(session.formResponses);
+      for (const name of names.length > 0 ? names : [studentName(student)]) {
+        group.rows.push({
+          name,
+          email: student.email,
+          phone: student.phone || "",
+          gender: session.gender || "",
+          studentType: session.studentType || "",
+        });
       }
     }
   }

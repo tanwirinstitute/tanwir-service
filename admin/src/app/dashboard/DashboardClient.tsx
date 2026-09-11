@@ -10,13 +10,18 @@ import { getClientAuth, getClientDb } from "@/lib/firebaseClient";
 import SignOutButton from "../SignOutButton";
 import { ACTIVE_REGISTRATION_ACADEMIC_YEAR, isAcademicYearAtOrAfter } from "@/server/academicTerm";
 import { courseGroupName } from "@/lib/coursePrograms";
-import { courseSessions } from "@/lib/courseSessions";
+import { courseSessionEntries, semesterRank, type CourseSessionEntry } from "@/lib/courseSessions";
 import { enrolleeNames } from "@/lib/enrolleeNames";
 import { buildAttendanceWorkbook, downloadBlob } from "./exportAttendance";
 import type { CourseRecord, StudentRecord } from "@/types/student";
 
 type CourseWithId = CourseRecord & { id: string };
 type StudentWithCourses = StudentRecord & { id: string; courses: CourseWithId[] };
+/** One (course, session) pair — see @/lib/courseSessions. The atomic unit
+ * for materials pickup, the status filter, and one course-detail row: a
+ * Full Year split course (Prophetic Guidance / Taqwa for Teens / Advanced
+ * Studies) is really two of these sharing one course doc. */
+type SessionEntry = CourseSessionEntry<CourseWithId>;
 
 type YearFilter = "upcoming" | "all" | string;
 type StatusFilter = "all" | "needs-pickup" | "picked-up";
@@ -55,10 +60,14 @@ function courseMatchesYear(course: CourseWithId, yearFilter: YearFilter): boolea
   return course.academicYear === yearFilter;
 }
 
-function courseMatchesStatus(course: CourseWithId, statusFilter: StatusFilter): boolean {
+// Pickup is tracked per session (see @/lib/courseSessions), not per course
+// doc, so this filters session entries rather than raw courses — a Full
+// Year course with Fall picked up but Spring not shows up under either
+// filter, just on the session it actually matches.
+function sessionMatchesStatus(entry: SessionEntry, statusFilter: StatusFilter): boolean {
   if (statusFilter === "all") return true;
-  if (statusFilter === "needs-pickup") return !course.materialsPickedUp;
-  return Boolean(course.materialsPickedUp);
+  if (statusFilter === "needs-pickup") return !entry.pickedUp;
+  return entry.pickedUp;
 }
 
 function courseMatchesGender(course: CourseWithId, genderFilter: string): boolean {
@@ -361,19 +370,20 @@ export default function DashboardClient() {
 
     return all
       .map((student) => {
-        const matchingCourses = student.courses
-          .filter(
-            (c) =>
-              courseMatchesYear(c, yearFilter) &&
-              courseMatchesStatus(c, statusFilter) &&
-              courseMatchesGender(c, genderFilter) &&
-              courseMatchesCourseName(c, courseFilter)
-          )
-          .sort((a, b) => (a.purchasedOn < b.purchasedOn ? 1 : -1));
-        return { ...student, matchingCourses };
+        // Year/gender/course filters are per-course — a course's own
+        // academicYear/gender/group don't vary between its sessions. Status
+        // is per-session, so it's applied after expanding each surviving
+        // course into its session entries (one for most courses, two for a
+        // Full Year split course).
+        const matchingSessions = student.courses
+          .filter((c) => courseMatchesYear(c, yearFilter) && courseMatchesGender(c, genderFilter) && courseMatchesCourseName(c, courseFilter))
+          .flatMap((c) => courseSessionEntries(c))
+          .filter((entry) => sessionMatchesStatus(entry, statusFilter))
+          .sort((a, b) => (a.course.purchasedOn < b.course.purchasedOn ? 1 : -1) || semesterRank(a.semester) - semesterRank(b.semester));
+        return { ...student, matchingSessions };
       })
       .filter((student) => {
-        if (student.matchingCourses.length === 0) return false;
+        if (student.matchingSessions.length === 0) return false;
         if (!q) return true;
         return [student.email, student.firstName, student.lastName, student.phone]
           .filter(Boolean)
@@ -387,9 +397,7 @@ export default function DashboardClient() {
   const registrationStats = useMemo(() => {
     let needsPickup = 0;
     let pickedUp = 0;
-    rows.forEach((student) =>
-      student.matchingCourses.forEach((course) => (course.materialsPickedUp ? pickedUp++ : needsPickup++))
-    );
+    rows.forEach((student) => student.matchingSessions.forEach((entry) => (entry.pickedUp ? pickedUp++ : needsPickup++)));
     return { total: needsPickup + pickedUp, needsPickup, pickedUp };
   }, [rows]);
 
@@ -399,7 +407,21 @@ export default function DashboardClient() {
   const handleExport = useCallback(async () => {
     setExporting(true);
     try {
-      const blob = await buildAttendanceWorkbook(rows);
+      const exportRows = rows.map((student) => ({
+        firstName: student.firstName,
+        lastName: student.lastName,
+        email: student.email,
+        phone: student.phone,
+        matchingSessions: student.matchingSessions.map((entry) => ({
+          productName: entry.course.productName,
+          semester: entry.semester,
+          academicYear: entry.course.academicYear,
+          gender: entry.course.gender,
+          studentType: entry.course.studentType,
+          formResponses: entry.course.formResponses,
+        })),
+      }));
+      const blob = await buildAttendanceWorkbook(exportRows);
       const dateStr = new Date().toISOString().slice(0, 10);
       downloadBlob(blob, `tanwir-attendance-${dateStr}.xlsx`);
     } catch (error) {
@@ -409,15 +431,20 @@ export default function DashboardClient() {
     }
   }, [rows]);
 
-  async function togglePickup(studentId: string, course: CourseWithId) {
-    const key = `${studentId}/${course.id}`;
-    const nextPickedUp = !course.materialsPickedUp;
+  // Toggles one session's pickup state, writing to materialsPickup.<semester>
+  // on the shared course doc rather than a flat field — a Full Year split
+  // course has two of these on the same doc, toggled independently, so
+  // marking Fall picked up in the fall never touches Spring's state when
+  // spring registration/pickup comes around.
+  async function togglePickup(studentId: string, entry: SessionEntry) {
+    const key = `${studentId}/${entry.course.id}/${entry.semester}`;
+    const nextPickedUp = !entry.pickedUp;
 
     setPending((prev) => new Set(prev).add(key));
     try {
-      await updateDoc(doc(getClientDb(), "students", studentId, "courses", course.id), {
-        materialsPickedUp: nextPickedUp,
-        materialsPickedUpAt: nextPickedUp ? serverTimestamp() : null,
+      await updateDoc(doc(getClientDb(), "students", studentId, "courses", entry.course.id), {
+        [`materialsPickup.${entry.semester}.pickedUp`]: nextPickedUp,
+        [`materialsPickup.${entry.semester}.pickedUpAt`]: nextPickedUp ? serverTimestamp() : null,
       });
     } catch (error) {
       console.error(`Failed to update pickup status for ${key}:`, error);
@@ -579,13 +606,13 @@ export default function DashboardClient() {
             </thead>
             <tbody>
               {rows.map((student) => {
-                const needsPickup = student.matchingCourses.some((c) => !c.materialsPickedUp);
+                const needsPickup = student.matchingSessions.some((entry) => !entry.pickedUp);
                 const isExpanded = expandedId === student.id;
                 // Gender/student-type are per-person, not per-course, but only
                 // captured at checkout — take them from the most relevant
-                // (first) matching course rather than repeating a lookup.
-                const gender = student.matchingCourses.find((c) => c.gender)?.gender;
-                const studentType = student.matchingCourses.find((c) => c.studentType)?.studentType;
+                // (first) matching session rather than repeating a lookup.
+                const gender = student.matchingSessions.find((entry) => entry.course.gender)?.course.gender;
+                const studentType = student.matchingSessions.find((entry) => entry.course.studentType)?.course.studentType;
 
                 return (
                   <Fragment key={student.id}>
@@ -616,7 +643,7 @@ export default function DashboardClient() {
                       <td className="col-meta col-gender" data-label="Gender">{gender || "—"}</td>
                       <td className="col-meta col-student-type" data-label="Student type">{studentType || "—"}</td>
                       <td className="col-courses" data-label="Courses">
-                        <span className="course-badge">{student.matchingCourses.length}</span>
+                        <span className="course-badge">{student.matchingSessions.length}</span>
                       </td>
                       <td className="col-chevron">
                         <IconChevronRight className="chevron-icon" />
@@ -637,16 +664,16 @@ export default function DashboardClient() {
                               </tr>
                             </thead>
                             <tbody>
-                              {student.matchingCourses.map((course) => {
-                                const key = `${student.id}/${course.id}`;
+                              {student.matchingSessions.map((entry) => {
+                                const course = entry.course;
+                                const key = `${student.id}/${course.id}/${entry.semester}`;
                                 const detail = courseDetail(course);
-                                const pickedUpAt = formatTimestamp(course.materialsPickedUpAt);
+                                const pickedUpAt = formatTimestamp(entry.pickedUpAt);
                                 const isPending = pending.has(key);
-                                const sessions = courseSessions(course.productName, course.semester);
                                 const registeredNames = enrolleeNames(course.formResponses);
 
                                 return (
-                                  <tr key={course.id}>
+                                  <tr key={key}>
                                     <td className="col-course-name" data-label="Course">
                                       {course.productName}
                                       {registeredNames.length > 0 && (
@@ -657,22 +684,14 @@ export default function DashboardClient() {
                                       )}
                                     </td>
                                     <td className="col-term" data-label="Term">
-                                      {sessions.length > 1 ? (
+                                      {entry.semester} · {course.academicYear}
+                                      {entry.derived && (
                                         <span
-                                          className="term-sessions"
-                                          title={`${course.semester} enrollment — separate Fall and Spring materials/attendance`}
+                                          className="term-derived-badge"
+                                          title="Split from a single Full Year purchase — separate Fall and Spring materials/attendance, tracked independently"
                                         >
-                                          {sessions.map((s) => (
-                                            <span key={s.semester} className="term-pill">
-                                              {s.semester}
-                                            </span>
-                                          ))}
-                                          <span className="term-year">{course.academicYear}</span>
+                                          Full Year
                                         </span>
-                                      ) : (
-                                        <>
-                                          {course.semester} · {course.academicYear}
-                                        </>
                                       )}
                                     </td>
                                     <td className="col-detail" data-label="Details">{detail || "—"}</td>
@@ -680,21 +699,21 @@ export default function DashboardClient() {
                                     <td className="col-materials" data-label="Materials">
                                       <button
                                         type="button"
-                                        className={course.materialsPickedUp ? "pickup-btn picked-up" : "pickup-btn"}
+                                        className={entry.pickedUp ? "pickup-btn picked-up" : "pickup-btn"}
                                         disabled={isPending}
                                         onClick={(event) => {
                                           event.stopPropagation();
-                                          togglePickup(student.id, course);
+                                          togglePickup(student.id, entry);
                                         }}
                                       >
                                         {isPending ? (
                                           <IconLoader className="btn-icon spin" />
-                                        ) : course.materialsPickedUp ? (
+                                        ) : entry.pickedUp ? (
                                           <IconCheck className="btn-icon" />
                                         ) : null}
                                         {isPending
                                           ? "Saving…"
-                                          : course.materialsPickedUp
+                                          : entry.pickedUp
                                             ? `Picked up${pickedUpAt ? ` · ${pickedUpAt}` : ""}`
                                             : "Mark picked up"}
                                       </button>
