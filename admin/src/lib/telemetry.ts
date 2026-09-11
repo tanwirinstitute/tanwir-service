@@ -77,6 +77,13 @@ export function buildOtelConfig(serviceName: string): Configuration {
  */
 const meter = metrics.getMeter("tanwir-admin");
 
+/** POST /api/auth/session attempts, tagged with the outcome — the "who" of a
+ * successful login lives on the request span (`enduser.id`/`enduser.email`),
+ * not on this counter, so it stays a cheap low-cardinality metric. */
+export const loginCounter = meter.createCounter("admin.login", {
+  description: "POST /api/auth/session outcomes",
+});
+
 /** Squarespace course-sync runs (cron + manual), tagged with the outcome. */
 export const syncRunCounter = meter.createCounter("admin.course_sync.run", {
   description: "POST /api/sync-courses invocations",
