@@ -1,5 +1,6 @@
 import { normalizeCourseName } from "@/lib/coursePrograms";
 import { courseSessions } from "@/lib/courseSessions";
+import { enrolleeNames } from "@/lib/enrolleeNames";
 
 export interface AttendanceCourseEntry {
   productName: string;
@@ -7,6 +8,7 @@ export interface AttendanceCourseEntry {
   academicYear: string;
   gender: string | null;
   studentType: string | null;
+  formResponses: Record<string, string>;
 }
 
 export interface AttendanceStudent {
@@ -89,13 +91,22 @@ function groupForAttendance(students: AttendanceStudent[]): CourseGroup[] {
           group = { courseName, semester: session.semester, academicYear: course.academicYear, rows: [] };
           groups.set(key, group);
         }
-        group.rows.push({
-          name: studentName(student),
-          email: student.email,
-          phone: student.phone || "",
-          gender: course.gender || "",
-          studentType: course.studentType || "",
-        });
+        // A purchase can register more than one person (a parent buying
+        // Taqwa for Teens for several kids in one checkout) — one roster row
+        // per named enrollee, each still carrying the purchaser's own
+        // contact info since that's who checkout actually captured it from.
+        // Falls back to the purchaser's own name when the course carries no
+        // such answer (most courses, and most Taqwa purchases too).
+        const names = enrolleeNames(course.formResponses);
+        for (const name of names.length > 0 ? names : [studentName(student)]) {
+          group.rows.push({
+            name,
+            email: student.email,
+            phone: student.phone || "",
+            gender: course.gender || "",
+            studentType: course.studentType || "",
+          });
+        }
       }
     }
   }

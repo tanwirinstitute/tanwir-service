@@ -625,6 +625,17 @@ button {
   border-bottom: none;
 }
 
+/* One purchase can register more than one person (e.g. a parent buying
+   Taqwa for Teens for several kids) — the checkout's own "who is this for"
+   answer, shown under the course name since it can name someone other than
+   the purchasing account. */
+.course-enrollees {
+  margin-top: 0.15rem;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--brand-green);
+}
+
 /* Term cell for a "Full Year" enrollment split into Fall + Spring sessions
    (see @/lib/courseSessions) — two small pills instead of one opaque
    "Full Year" label, so it's visible at a glance that the student needs

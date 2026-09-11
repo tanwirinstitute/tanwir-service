@@ -11,6 +11,7 @@ import SignOutButton from "../SignOutButton";
 import { ACTIVE_REGISTRATION_ACADEMIC_YEAR, isAcademicYearAtOrAfter } from "@/server/academicTerm";
 import { courseGroupName } from "@/lib/coursePrograms";
 import { courseSessions } from "@/lib/courseSessions";
+import { enrolleeNames } from "@/lib/enrolleeNames";
 import { buildAttendanceWorkbook, downloadBlob } from "./exportAttendance";
 import type { CourseRecord, StudentRecord } from "@/types/student";
 
@@ -642,10 +643,19 @@ export default function DashboardClient() {
                                 const pickedUpAt = formatTimestamp(course.materialsPickedUpAt);
                                 const isPending = pending.has(key);
                                 const sessions = courseSessions(course.productName, course.semester);
+                                const registeredNames = enrolleeNames(course.formResponses);
 
                                 return (
                                   <tr key={course.id}>
-                                    <td className="col-course-name" data-label="Course">{course.productName}</td>
+                                    <td className="col-course-name" data-label="Course">
+                                      {course.productName}
+                                      {registeredNames.length > 0 && (
+                                        <div className="course-enrollees" title="Names entered at checkout — may differ from the purchasing account">
+                                          {registeredNames.length > 1 ? "Registered: " : "For: "}
+                                          {registeredNames.join(", ")}
+                                        </div>
+                                      )}
+                                    </td>
                                     <td className="col-term" data-label="Term">
                                       {sessions.length > 1 ? (
                                         <span
