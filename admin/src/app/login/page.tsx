@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
+import { faro } from "@grafana/faro-web-sdk";
 import { getClientAuth } from "@/lib/firebaseClient";
 
 /** Only allow same-origin relative paths as a post-login destination. */
@@ -43,6 +44,12 @@ function LoginForm() {
             : "Sign-in failed. Please try again."
         );
         return;
+      }
+
+      try {
+        faro?.api?.setUser({ id: cred.user.uid, email: cred.user.email ?? undefined });
+      } catch {
+        // faro not initialized (no collector URL) — nothing to tag.
       }
 
       router.replace(next);
