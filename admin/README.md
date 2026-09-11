@@ -47,6 +47,14 @@ Firestore access for the dashboard is governed by `../firestore.rules` (repo roo
 
 Every blast is logged to the `emailSends` Firestore collection (written and read only server-side via `firebase-admin` in `src/server/emailHistory.ts` — no `firestore.rules` entry needed, the project-wide default deny covers it). The **History** tab lists recent sends with per-send delivered/failed counts; when Gmail rejected some recipients (intermittent 403s under rate/quota pressure), each failure shows the reason and a **Retry failed** button re-sends the same content to just those recipients (`POST /api/email/retry`), recording the attempt as its own history entry linked back via `retryOf`. Retrying is safe to repeat — it only ever targets the recipients still marked failed.
 
+## QR Codes
+
+`/qr` — generate branded, **dynamic** QR codes: green-dot styling with the Tanwir logo in the middle, downloadable as SVG (print) or PNG. Each code encodes a permanent short link (`https://admin.tanwir.institute/qr/<slug>`) rather than the destination itself; the public, unauthenticated route `/qr/[slug]` resolves the slug in Firestore on every scan and 302-redirects (with `Cache-Control: no-store`, so retargeting takes effect immediately). Admins can repoint a code's destination any time from the console without reprinting anything. Scans of unknown/deleted slugs fall back to `https://tanwir.institute`.
+
+Links live in the `qrLinks` Firestore collection (doc id = slug), written and read only server-side via `firebase-admin` in `src/server/qrLinks.ts` — no `firestore.rules` entry needed, the project-wide default deny covers it. Slugs are auto-generated (7 chars, unambiguous alphabet) or custom (`[a-z0-9-]`, a few route-shadowing names reserved), immutable once created, and each doc tracks `scanCount`/`lastScannedAt`. Destinations are validated to absolute http(s) URLs at write time so the redirect never forwards anywhere else.
+
+The QR rendering (`src/app/qr/tanwirQr.ts`) is a hand-rolled SVG on top of the `qrcode` encoder: error correction forced to H, round dots at 80% of the module pitch, rounded finder eyes, full 4-module quiet zone, and a centered logo badge knocking out ~9% of the modules — verified decodable with ZXing from 200px rasters up, logo included. Codes are generated client-side; downloads embed the logo as a data URI so the files are self-contained. Set `NEXT_PUBLIC_QR_ORIGIN` to change the host baked into new codes (defaults to wherever the console is browsed).
+
 ## Telemetry
 
 **Backend** — OpenTelemetry in `src/instrumentation.ts` (traces via [`@vercel/otel`](https://www.npmjs.com/package/@vercel/otel)) + `src/lib/telemetry.ts` (metrics), exporting to the **Grafana Cloud OTLP gateway**. No-op until the `GRAFANA_OTLP_*` trio is set.

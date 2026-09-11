@@ -22,6 +22,11 @@ const TOOLS: { href: string; title: string; description: string }[] = [
     title: "Email Console",
     description: "Compose and send email to students",
   },
+  {
+    href: "/qr",
+    title: "QR Codes",
+    description: "Branded QR codes with editable destinations",
+  },
 ];
 
 export default async function HomePage() {

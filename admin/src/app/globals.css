@@ -1651,3 +1651,241 @@ button {
   max-width: 100%;
   border-radius: var(--radius-sm);
 }
+
+/* ============================= QR Codes console ============================= */
+
+.qr-layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .qr-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.qr-panel-title {
+  margin: 0 0 1.1rem;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--brand-ink);
+}
+
+.qr-create-panel {
+  position: sticky;
+  top: 1.25rem;
+}
+
+.qr-input {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: #1a1d23;
+}
+
+.qr-input:focus {
+  outline: 2px solid var(--brand-green-tint);
+  border-color: var(--brand-green-light);
+}
+
+.qr-input:disabled {
+  background: var(--gray-100);
+  color: var(--gray-400);
+}
+
+.qr-create-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+}
+
+/* Link list */
+
+.qr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.qr-list-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--gray-500);
+  font-size: 0.9rem;
+  padding: 1.5rem 0;
+}
+
+.qr-card {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+
+.qr-card-preview {
+  flex-shrink: 0;
+  width: 148px;
+  height: 148px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #fff;
+}
+
+.qr-card-preview svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.qr-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.qr-card-title {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--brand-ink);
+}
+
+.qr-card-url {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.4rem;
+  min-width: 0;
+}
+
+.qr-card-url code {
+  font-size: 0.82rem;
+  color: var(--brand-green);
+  background: var(--brand-green-tint);
+  border-radius: var(--radius-sm);
+  padding: 0.2rem 0.45rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qr-card-target {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  color: var(--gray-600);
+  overflow-wrap: anywhere;
+}
+
+.qr-card-target a {
+  color: inherit;
+  text-decoration-color: var(--gray-300);
+}
+
+.qr-card-target a:hover {
+  color: var(--brand-green);
+}
+
+.qr-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.75rem;
+  font-size: 0.78rem;
+  color: var(--gray-500);
+}
+
+.qr-meta-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex-shrink: 0;
+}
+
+.qr-card-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.qr-card-actions .ec-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.qr-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--gray-500);
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.qr-icon-btn:hover {
+  color: var(--brand-green);
+  background: var(--gray-100);
+}
+
+.qr-icon-btn-danger:hover {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.qr-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.qr-icon.ok {
+  color: var(--brand-green);
+}
+
+.qr-btn-danger {
+  color: var(--danger-text);
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+}
+
+.qr-btn-danger:hover:not(:disabled) {
+  background: #fde5e5;
+  border-color: var(--danger);
+}
+
+.qr-confirm-text {
+  font-size: 0.82rem;
+  color: var(--danger-text);
+  font-weight: 600;
+}
+
+.qr-field-tight {
+  margin-bottom: 0.75rem;
+}
+
+@media (max-width: 560px) {
+  .qr-card {
+    flex-direction: column;
+  }
+
+  .qr-card-preview {
+    width: 180px;
+    height: 180px;
+    align-self: center;
+  }
+}
