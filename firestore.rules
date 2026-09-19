@@ -133,6 +133,14 @@ service cloud.firestore {
       allow read, write: if isDashboardAdmin();
     }
 
+    // Contact warehouse — consolidated across students/mailchimp/event/legacy
+    // sources. Written only by the server-side sync (firebase-admin, bypasses
+    // rules); the admin dashboard reads it live the same way it reads
+    // students above.
+    match /contacts/{contactId} {
+      allow read, write: if isDashboardAdmin();
+    }
+
     // The dashboard runs collectionGroup(db, "courses") to load every
     // student's courses in one live query. A rule scoped to the literal
     // nested path (/students/{id}/courses/{id}) only governs direct

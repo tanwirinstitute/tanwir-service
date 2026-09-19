@@ -27,6 +27,11 @@ const TOOLS: { href: string; title: string; description: string }[] = [
     title: "QR Codes",
     description: "Branded QR codes with editable destinations",
   },
+  {
+    href: "/contacts",
+    title: "Contacts",
+    description: "Consolidated contact warehouse across every source system",
+  },
 ];
 
 export default async function HomePage() {
