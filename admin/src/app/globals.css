@@ -1162,20 +1162,47 @@ button {
   color: var(--gray-500);
 }
 
-.hadra-card {
+.hadra-frame {
+  position: relative;
   margin-top: 1.5rem;
-  padding: 0.5rem;
-  background: #fff;
-  border: 1px solid var(--gray-200);
+  padding: 0.9rem 0.9rem 1.1rem;
+  background: linear-gradient(180deg, #d8d9c8, #c7c8b6);
+  border: 1px solid #a9ab98;
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xs);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.hadra-frame-led {
+  position: absolute;
+  top: 0.55rem;
+  left: 0.75rem;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #c1443f;
+  box-shadow: 0 0 4px rgba(193, 68, 63, 0.8);
+}
+
+.hadra-screen {
+  position: relative;
   overflow: hidden;
+  border-radius: 4px;
+  background: #0f380f;
+  box-shadow: inset 0 0 0 3px #1a1a1a, inset 0 2px 6px rgba(0, 0, 0, 0.5);
 }
 
 .hadra-canvas {
   display: block;
   width: 100%;
   image-rendering: pixelated;
+}
+
+.hadra-scanlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.12) 0, rgba(0, 0, 0, 0.12) 1px, transparent 1px, transparent 3px);
+  mix-blend-mode: multiply;
 }
 
 .brand-link {

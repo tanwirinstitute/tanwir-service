@@ -4,12 +4,20 @@ import { useEffect, useRef } from "react";
 
 const PIXEL = 4;
 
+/** Classic 4-shade DMG Game Boy green palette — every pixel on screen uses one of these. */
+const GB = {
+  lightest: "#9bbc0f",
+  light: "#8bac0f",
+  dark: "#306230",
+  darkest: "#0f380f",
+};
+
 /**
- * One 10x13 pixel-grid sprite, reused for every character — palette swaps
- * (below) give each one a distinct look. Legend: ' ' empty, 'T'/'t' turban
- * main/shade, 'S' skin, 'e' eye, 'R'/'r' robe main/shade, 'H' hands (skin).
- * Drawn from a bottom-center pivot (see drawCharacter) so rotation for the
- * dhikr sway pivots at the hips, not the head.
+ * One 10x13 pixel-grid sprite, reused for every character — see PALETTES
+ * below for the (limited, GB-authentic) recoloring. Legend: ' ' empty,
+ * 'T'/'t' turban main/shade, 'S' skin, 'e' eye, 'R'/'r' robe main/shade,
+ * 'H' hands (skin). Drawn from a bottom-center pivot (see drawCharacter) so
+ * rotation for the dhikr sway pivots at the hips, not the head.
  */
 const SPRITE = [
   "  TTTT    ",
@@ -27,31 +35,25 @@ const SPRITE = [
   " rrrrrrr  ",
 ];
 
-const EYE_COLOR = "#1a1d23";
-
+/** Two recolorings within the 4-tone palette, alternated for a little variety without breaking the one-screen-one-palette GB conceit. */
 const PALETTES: Record<string, string>[] = [
-  { T: "#f4f1ea", t: "#d8d3c5", S: "#e8b98a", R: "#2a6051", r: "#1f4a3f" },
-  { T: "#eaf2ef", t: "#c7d9d2", S: "#c98a56", R: "#8a5a3b", r: "#6b4530" },
-  { T: "#f9e4c8", t: "#e0c49f", S: "#f0c9a0", R: "#3d5a80", r: "#2c4260" },
-  { T: "#ffffff", t: "#dcdcdc", S: "#8d5a3c", R: "#6d597a", r: "#54465f" },
-  { T: "#f0e6d2", t: "#d4c7a8", S: "#f5d0a9", R: "#a44a3f", r: "#7f3830" },
-  { T: "#e6d9c3", t: "#c9b896", S: "#6b4226", R: "#556b2f", r: "#3f4f22" },
-  { T: "#dfe7e2", t: "#b9c7c0", S: "#d9a066", R: "#264653", r: "#1a323b" },
-  { T: "#f6efe3", t: "#dccdb0", S: "#a9713f", R: "#7c3f58", r: "#5c2e42" },
+  { T: GB.lightest, t: GB.light, S: GB.light, R: GB.dark, r: GB.darkest, H: GB.light },
+  { T: GB.light, t: GB.darkest, S: GB.lightest, R: GB.darkest, r: GB.dark, H: GB.lightest },
 ];
 
-const CHARACTER_COUNT = 8;
+const CHARACTER_COUNT = 7;
 const MAX_SWAY = 0.16;
 const MAX_CONCURRENT_WALKERS = 1;
 
 interface Character {
-  seatAngle: number;
+  seatX: number;
   palette: Record<string, string>;
   phase: number;
   speed: number;
   mode: "idle" | "walking";
   walkStart: number;
   walkDuration: number;
+  walkDir: number;
   nextWalkAt: number;
 }
 
@@ -60,35 +62,74 @@ function drawCharacter(ctx: CanvasRenderingContext2D, palette: Record<string, st
   const rows = SPRITE.length;
   const cols = SPRITE[0].length;
 
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-
+  const cells: { ch: string; px: number; py: number }[] = [];
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const ch = SPRITE[r][c];
       if (ch === " ") continue;
-      ctx.fillStyle = ch === "e" ? EYE_COLOR : palette[ch];
-      const px = (c - cols / 2) * size;
-      const py = (r - rows) * size;
-      ctx.fillRect(px, py, size + 0.5, size + 0.5);
+      cells.push({ ch, px: (c - cols / 2) * size, py: (r - rows) * size });
     }
+  }
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+
+  // Outline pass: stamp a one-"pixel" dark halo behind the sprite so it
+  // reads clearly against a same-toned background (only 4 shades exist).
+  ctx.fillStyle = GB.darkest;
+  const outlineOffsets: [number, number][] = [
+    [-size, 0],
+    [size, 0],
+    [0, -size],
+    [0, size],
+  ];
+  for (const { px, py } of cells) {
+    for (const [dx, dy] of outlineOffsets) {
+      ctx.fillRect(px + dx, py + dy, size + 0.5, size + 0.5);
+    }
+  }
+
+  for (const { ch, px, py } of cells) {
+    ctx.fillStyle = ch === "e" ? GB.darkest : palette[ch];
+    ctx.fillRect(px, py, size + 0.5, size + 0.5);
   }
 
   ctx.restore();
 }
 
-function makeCharacters(now: number): Character[] {
+function makeCharacters(now: number, width: number): Character[] {
+  const margin = width * 0.1;
+  const span = width - margin * 2;
   return Array.from({ length: CHARACTER_COUNT }, (_, i) => ({
-    seatAngle: (i / CHARACTER_COUNT) * Math.PI * 2 - Math.PI / 2,
+    seatX: margin + (span * i) / (CHARACTER_COUNT - 1),
     palette: PALETTES[i % PALETTES.length],
     phase: Math.random() * Math.PI * 2,
     speed: 1.1 + Math.random() * 0.3,
     mode: "idle" as const,
     walkStart: 0,
     walkDuration: 0,
+    walkDir: Math.random() < 0.5 ? -1 : 1,
     nextWalkAt: now + 2000 + Math.random() * 6000,
   }));
+}
+
+function drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number, horizon: number) {
+  ctx.fillStyle = GB.lightest;
+  ctx.fillRect(0, 0, width, horizon);
+
+  const tile = 12;
+  for (let ty = horizon; ty < height; ty += tile) {
+    const rowIndex = Math.floor((ty - horizon) / tile);
+    for (let tx = 0; tx < width; tx += tile) {
+      const colIndex = Math.floor(tx / tile);
+      ctx.fillStyle = (rowIndex + colIndex) % 2 === 0 ? GB.light : GB.dark;
+      ctx.fillRect(tx, ty, tile, tile);
+    }
+  }
+
+  ctx.fillStyle = GB.darkest;
+  ctx.fillRect(0, horizon - 2, width, 2);
 }
 
 export default function HadraScene() {
@@ -103,7 +144,7 @@ export default function HadraScene() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const height = 190;
+    const height = 160;
     let width = container.clientWidth;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
@@ -121,70 +162,52 @@ export default function HadraScene() {
       if (!entry) return;
       width = entry.contentRect.width;
       applySize();
+      characters = makeCharacters(performance.now(), width);
     });
     resizeObserver.observe(container);
 
-    const characters = makeCharacters(performance.now());
+    let characters = makeCharacters(performance.now(), width);
     let animationFrame: number;
     let concurrentWalkers = 0;
 
     function frame(now: number) {
-      const cx = width / 2;
-      const cy = height * 0.66;
-      const radiusX = width * 0.36;
-      const radiusY = height * 0.22;
+      const horizon = height * 0.6;
+      const baseline = horizon + 22;
 
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx!.clearRect(0, 0, width, height);
-
-      // Rug the circle sits on.
-      ctx!.fillStyle = "#eaf2ef";
-      ctx!.beginPath();
-      ctx!.ellipse(cx, cy + radiusY * 0.15, radiusX * 1.22, radiusY * 1.35, 0, 0, Math.PI * 2);
-      ctx!.fill();
+      drawBackground(ctx!, width, height, horizon);
 
       const positioned = characters.map((character) => {
-        const seatX = cx + Math.cos(character.seatAngle) * radiusX;
-        const seatY = cy + Math.sin(character.seatAngle) * radiusY;
-        const depth = (Math.sin(character.seatAngle) + 1) / 2;
-        const baseScale = 0.78 + depth * 0.34;
-
         if (character.mode === "idle" && now >= character.nextWalkAt && concurrentWalkers < MAX_CONCURRENT_WALKERS) {
           character.mode = "walking";
           character.walkStart = now;
-          character.walkDuration = 3200 + Math.random() * 1800;
+          character.walkDuration = 3000 + Math.random() * 1600;
         }
 
-        let x = seatX;
-        let y = seatY;
-        let scale = baseScale;
+        let x = character.seatX;
+        let y = baseline;
         let angle = Math.sin(now / 1000 + character.phase) * MAX_SWAY * character.speed;
 
         if (character.mode === "walking") {
           const t = Math.min((now - character.walkStart) / character.walkDuration, 1);
           const p = Math.sin(t * Math.PI);
-          const destX = cx + (seatX - cx) * 0.25;
-          const destY = cy + (seatY - cy) * 0.25;
-          x = seatX + (destX - seatX) * p;
-          y = seatY + (destY - seatY) * p - Math.abs(Math.sin(t * Math.PI * 6)) * 2 * p;
-          scale = baseScale * (1 + 0.06 * p);
-          angle = Math.sin(now / 220) * 0.05 * p;
+          x = character.seatX + character.walkDir * 16 * p;
+          y = baseline - Math.abs(Math.sin(t * Math.PI * 6)) * 3 * p;
+          angle = Math.sin(now / 200) * 0.06 * p;
           if (t >= 1) {
             character.mode = "idle";
             character.nextWalkAt = now + 5000 + Math.random() * 9000;
           }
         }
 
-        return { character, x, y, scale, angle };
+        return { character, x, y, angle };
       });
 
       concurrentWalkers = positioned.filter((p) => p.character.mode === "walking").length;
 
-      positioned
-        .sort((a, b) => a.y - b.y)
-        .forEach(({ character, x, y, scale, angle }) => {
-          drawCharacter(ctx!, character.palette, x, y, scale, angle);
-        });
+      for (const { character, x, y, angle } of positioned) {
+        drawCharacter(ctx!, character.palette, x, y, 1, angle);
+      }
 
       animationFrame = requestAnimationFrame(frame);
     }
@@ -198,8 +221,12 @@ export default function HadraScene() {
   }, []);
 
   return (
-    <div className="hadra-card" ref={containerRef}>
-      <canvas ref={canvasRef} className="hadra-canvas" aria-hidden="true" />
+    <div className="hadra-frame">
+      <div className="hadra-frame-led" aria-hidden="true" />
+      <div className="hadra-screen" ref={containerRef}>
+        <canvas ref={canvasRef} className="hadra-canvas" aria-hidden="true" />
+        <div className="hadra-scanlines" aria-hidden="true" />
+      </div>
     </div>
   );
 }
