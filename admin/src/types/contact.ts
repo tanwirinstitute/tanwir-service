@@ -2,8 +2,9 @@
  * Every system that has ever collected contact info and now feeds the
  * warehouse. "student_legacy" is the pre-electronic-courses era, tracked by
  * hand in spreadsheets before students were synced from Squarespace.
+ * "donor" is a one-off CSV export from the donation platform (Donorloop).
  */
-export type ContactSource = "student" | "student_legacy" | "mailchimp" | "event";
+export type ContactSource = "student" | "student_legacy" | "mailchimp" | "event" | "donor";
 
 export interface ContactSourceEntry {
   source: ContactSource;

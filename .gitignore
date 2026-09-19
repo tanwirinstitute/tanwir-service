@@ -25,3 +25,7 @@ next-env.d.ts
 .claude
 # Local Netlify folder
 .netlify
+
+# Raw contact/donor data dumps (PII) handed off for one-off imports —
+# never committed, only ever read locally by admin/import_*.mjs scripts.
+/*.csv

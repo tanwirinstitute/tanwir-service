@@ -18,9 +18,10 @@ const SOURCE_LABELS: Record<ContactSource, string> = {
   student_legacy: "Student (legacy)",
   mailchimp: "Mailchimp",
   event: "Event",
+  donor: "Donor",
 };
 
-const SOURCE_ORDER: ContactSource[] = ["student", "student_legacy", "mailchimp", "event"];
+const SOURCE_ORDER: ContactSource[] = ["student", "student_legacy", "mailchimp", "event", "donor"];
 
 function initials(contact: { firstName: string | null; lastName: string | null; email: string }): string {
   const first = contact.firstName?.trim()?.[0];
