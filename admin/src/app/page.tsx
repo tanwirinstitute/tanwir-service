@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { verifySession } from "@/lib/session";
 import SignOutButton from "./SignOutButton";
+import HadraScene from "./HadraScene";
 
 // Reads the session cookie, so it can never be statically cached.
 export const dynamic = "force-dynamic";
@@ -61,6 +62,8 @@ export default async function HomePage() {
           </Link>
         ))}
       </nav>
+
+      <HadraScene />
     </main>
   );
 }

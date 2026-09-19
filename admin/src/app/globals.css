@@ -1162,6 +1162,22 @@ button {
   color: var(--gray-500);
 }
 
+.hadra-card {
+  margin-top: 1.5rem;
+  padding: 0.5rem;
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+.hadra-canvas {
+  display: block;
+  width: 100%;
+  image-rendering: pixelated;
+}
+
 .brand-link {
   text-decoration: none;
   color: inherit;
