@@ -118,15 +118,16 @@ service cloud.firestore {
     }
 
     // --- Squarespace course-sync admin dashboard (admin/) ---
-    // Read/write on students and their courses subcollection, gated by the
-    // `admin` custom claim minted server-side in
-    // admin/src/server/customToken.ts, only ever after the caller already
-    // passed the dashboard's shared-secret gate
-    // (admin/src/server/adminAuth.ts). Distinct from isAdmin() above, which
-    // is a different system (authorizedUsers.Role == 'admin') unrelated to
-    // this dashboard.
+    // Read/write on students and their courses subcollection. Originally
+    // gated by an `admin` custom claim minted via a shared-secret token
+    // (admin/src/server/customToken.ts + adminAuth.ts) — both deleted when
+    // the dashboard switched to Google login + a session cookie checked
+    // against authorizedUsers/{uid} (admin/src/lib/session.ts), so this now
+    // mirrors that same membership check directly (no Role requirement,
+    // unlike isAdmin() above — matches session.ts exactly).
     function isDashboardAdmin() {
-      return request.auth != null && request.auth.token.admin == true;
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/authorizedUsers/$(request.auth.uid));
     }
 
     match /students/{studentId} {
