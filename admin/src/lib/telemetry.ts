@@ -103,3 +103,13 @@ export const syncCoursesWritten = meter.createHistogram("admin.course_sync.cours
 export const blastBatchCounter = meter.createCounter("admin.email.blast_batch", {
   description: "Batches sent via POST /api/email/send-blast",
 });
+
+/** Contact warehouse sync runs (currently: students -> contacts), tagged with the outcome. */
+export const contactSyncRunCounter = meter.createCounter("admin.contact_sync.run", {
+  description: "POST /api/sync-contacts invocations",
+});
+
+/** Contact docs written per successful sync run. */
+export const contactSyncContactsWritten = meter.createHistogram("admin.contact_sync.contacts_written", {
+  description: "Contact records written in one sync run",
+});
