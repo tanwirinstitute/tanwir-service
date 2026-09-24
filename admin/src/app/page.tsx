@@ -33,6 +33,11 @@ const TOOLS: { href: string; title: string; description: string }[] = [
     title: "Contacts",
     description: "Consolidated contact warehouse across every source system",
   },
+  {
+    href: "/scholarships",
+    title: "Scholarships",
+    description: "Financial aid applications and Zakat-funded award tracking",
+  },
 ];
 
 export default async function HomePage() {

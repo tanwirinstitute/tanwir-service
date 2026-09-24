@@ -515,6 +515,11 @@ button {
   color: var(--brand-green);
 }
 
+.status-pill.danger {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
 .course-badge {
   display: inline-flex;
   align-items: center;
