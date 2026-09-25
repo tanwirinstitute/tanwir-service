@@ -170,6 +170,20 @@ function buildCourseRecord(order: SquarespaceOrder, lineItem: SquarespaceLineIte
     // assuming a fixed per-course field layout, since that layout has
     // already changed once as the course catalog evolved.
     formResponses: { ...flattenFormFields(order.formSubmission), ...flattenFormFields(lineItem.customizations) },
+    // Order-level, so every course line item on a multi-item order carries
+    // the same discountLines — fine in practice since a financial-aid promo
+    // code is only ever applied to single-course orders.
+    ...(order.discountLines?.length
+      ? {
+          discountLines: order.discountLines.map((d) => ({
+            discountId: d.discountId,
+            name: d.name,
+            amount: d.amount,
+            promoCode: d.promoCode,
+            discountType: d.discountType,
+          })),
+        }
+      : {}),
     syncedAt: FieldValue.serverTimestamp(),
   };
 }

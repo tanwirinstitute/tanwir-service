@@ -7,6 +7,14 @@ export interface StudentRecord {
   updatedAt: unknown;
 }
 
+export interface CourseDiscountLine {
+  discountId: string;
+  name: string;
+  amount: { currency: string; value: string };
+  promoCode: string;
+  discountType: string;
+}
+
 export interface CourseRecord {
   orderId: string;
   orderNumber: string;
@@ -23,6 +31,15 @@ export interface CourseRecord {
   studentType: string | null;
   variantOptions: Record<string, string>;
   formResponses: Record<string, string>;
+  /**
+   * Discounts applied to the *order* this course was purchased on (not
+   * per-line-item — Squarespace discounts the whole order), copied through
+   * verbatim from the order's own discountLines. Absent on orders synced
+   * before this field existed (Sep 2026) and on undiscounted orders; the
+   * scholarships module treats "missing" and "no discount" the same way.
+   * See SquarespaceDiscountLine for the FAID promo code shape.
+   */
+  discountLines?: CourseDiscountLine[];
   syncedAt: unknown;
   /**
    * Materials pickup, per session (keyed by the session's semester — see

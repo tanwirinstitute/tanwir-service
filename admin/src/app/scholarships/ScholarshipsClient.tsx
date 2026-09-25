@@ -11,15 +11,17 @@ import SignOutButton from "../SignOutButton";
 import type { ScholarshipRecord } from "@/types/scholarship";
 import type { CourseRecord } from "@/types/student";
 import {
-  computeListPrices,
+  extractFaidRedemptions,
   formatMoney,
   isOnOrAfterCutoff,
-  matchScholarshipPurchase,
+  matchScholarshipToDiscount,
   normalizeStatus,
   normalizeZakat,
+  parseAwardPercentage,
   scholarshipProgramGroup,
+  twoDigitYear,
   SCHOLARSHIP_CUTOFF_ISO,
-  type CoursePurchaseCandidate,
+  type CoursePurchase,
   type ScholarshipMatch,
 } from "@/lib/scholarshipMatching";
 
@@ -155,7 +157,12 @@ interface Row {
   reviewMillis: number | null;
   match: ScholarshipMatch | null; // null when not eligible for matching (not approved+zakat=yes)
   amountCovered: number | null;
-  listPrice: number | null;
+}
+
+function computeMatch(s: ScholarshipRecord, reviewMillis: number | null, courses: Map<string, CoursePurchase[]>): ScholarshipMatch {
+  const studentId = (s.email ?? "").trim().toLowerCase();
+  const redemptions = extractFaidRedemptions(courses.get(studentId) ?? []);
+  return matchScholarshipToDiscount(parseAwardPercentage(s.need), twoDigitYear(reviewMillis), scholarshipProgramGroup(s.course), redemptions);
 }
 
 export default function ScholarshipsClient() {
@@ -163,8 +170,7 @@ export default function ScholarshipsClient() {
   const [signedIn, setSignedIn] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [scholarships, setScholarships] = useState<Map<string, ScholarshipRecord>>(new Map());
-  const [courses, setCourses] = useState<Map<string, CoursePurchaseCandidate[]>>(new Map());
-  const [allCourseProducts, setAllCourseProducts] = useState<{ productName: string; pricePaidValue: number }[]>([]);
+  const [courses, setCourses] = useState<Map<string, CoursePurchase[]>>(new Map());
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("approved");
   const [zakatFilter, setZakatFilter] = useState<ZakatFilter>("all");
@@ -213,27 +219,26 @@ export default function ScholarshipsClient() {
     const unsubCourses = onSnapshot(
       collectionGroup(db, "courses"),
       (snapshot) => {
-        const byStudent = new Map<string, CoursePurchaseCandidate[]>();
-        const allProducts: { productName: string; pricePaidValue: number }[] = [];
+        const byStudent = new Map<string, CoursePurchase[]>();
         snapshot.forEach((docSnap) => {
           if (!docSnap.ref.path.startsWith("students/")) return;
           const studentId = docSnap.ref.parent.parent!.id;
           const data = docSnap.data() as CourseRecord;
           const pricePaidValue = Number.parseFloat(data.pricePaid?.value ?? "");
-          if (Number.isNaN(pricePaidValue)) return;
-          const candidate: CoursePurchaseCandidate = {
+          const purchase: CoursePurchase = {
             id: docSnap.id,
             productName: data.productName,
-            pricePaidValue,
-            purchasedOnMillis: data.purchasedOn ? Date.parse(data.purchasedOn) : null,
+            pricePaidValue: Number.isNaN(pricePaidValue) ? 0 : pricePaidValue,
+            discountLines: (data.discountLines ?? []).map((d) => ({
+              promoCode: d.promoCode,
+              amountValue: Number.parseFloat(d.amount?.value ?? "0") || 0,
+            })),
           };
           const list = byStudent.get(studentId) ?? [];
-          list.push(candidate);
+          list.push(purchase);
           byStudent.set(studentId, list);
-          allProducts.push({ productName: data.productName, pricePaidValue });
         });
         setCourses(byStudent);
-        setAllCourseProducts(allProducts);
       },
       onError
     );
@@ -244,8 +249,6 @@ export default function ScholarshipsClient() {
     };
   }, [signedIn, signOutAndRedirect]);
 
-  const listPrices = useMemo(() => computeListPrices(allCourseProducts), [allCourseProducts]);
-
   const rows = useMemo<Row[]>(() => {
     return Array.from(scholarships.entries())
       .map(([id, s]): Row => {
@@ -255,24 +258,13 @@ export default function ScholarshipsClient() {
 
         const eligibleForMatching = status === "approved" && zakat === "yes";
         if (!eligibleForMatching) {
-          return { scholarship: { id, ...s }, status, zakat, reviewMillis, match: null, amountCovered: null, listPrice: null };
+          return { scholarship: { id, ...s }, status, zakat, reviewMillis, match: null, amountCovered: null };
         }
 
-        const studentId = (s.email ?? "").trim().toLowerCase();
-        const programGroup = scholarshipProgramGroup(s.course);
-        const studentCourses = courses.get(studentId) ?? [];
-        const match = matchScholarshipPurchase(programGroup, reviewMillis, studentCourses);
+        const match = computeMatch(s, reviewMillis, courses);
+        const amountCovered = match.kind === "matched" ? match.redemption.amountValue : null;
 
-        let amountCovered: number | null = null;
-        let listPrice: number | null = null;
-        if (match.kind === "matched") {
-          listPrice = listPrices.get(match.course.productName) ?? null;
-          if (listPrice !== null) {
-            amountCovered = Math.max(0, listPrice - match.course.pricePaidValue);
-          }
-        }
-
-        return { scholarship: { id, ...s }, status, zakat, reviewMillis, match, amountCovered, listPrice };
+        return { scholarship: { id, ...s }, status, zakat, reviewMillis, match, amountCovered };
       })
       .filter((row) => isOnOrAfterCutoff(row.reviewMillis))
       .filter((row) => statusFilter === "all" || row.status === statusFilter)
@@ -288,7 +280,7 @@ export default function ScholarshipsClient() {
           .includes(q);
       })
       .sort((a, b) => (b.reviewMillis ?? 0) - (a.reviewMillis ?? 0));
-  }, [scholarships, courses, listPrices, statusFilter, zakatFilter, query]);
+  }, [scholarships, courses, statusFilter, zakatFilter, query]);
 
   const summary = useMemo(() => {
     const inScope = Array.from(scholarships.entries())
@@ -306,17 +298,9 @@ export default function ScholarshipsClient() {
     let totalCovered = 0;
     let needsReview = 0;
     for (const r of zakatConsented) {
-      const studentId = (r.s.email ?? "").trim().toLowerCase();
-      const programGroup = scholarshipProgramGroup(r.s.course);
-      const studentCourses = courses.get(studentId) ?? [];
-      const match = matchScholarshipPurchase(programGroup, r.reviewMillis, studentCourses);
+      const match = computeMatch(r.s, r.reviewMillis, courses);
       if (match.kind === "matched") {
-        const listPrice = listPrices.get(match.course.productName);
-        if (listPrice !== undefined) {
-          totalCovered += Math.max(0, listPrice - match.course.pricePaidValue);
-        } else {
-          needsReview += 1;
-        }
+        totalCovered += match.redemption.amountValue;
       } else {
         needsReview += 1;
       }
@@ -328,7 +312,7 @@ export default function ScholarshipsClient() {
       totalCovered,
       needsReview,
     };
-  }, [scholarships, courses, listPrices]);
+  }, [scholarships, courses]);
 
   if (authError) {
     return (
@@ -385,16 +369,15 @@ export default function ScholarshipsClient() {
           onClick={() => setZakatFilter(zakatFilter === "yes" ? "all" : "yes")}
           active={zakatFilter === "yes"}
         />
-        <StatCard icon={<IconHeart className="stat-icon-svg" />} label="Covered by Zakat (matched)" value={formatMoney(summary.totalCovered)} />
+        <StatCard icon={<IconHeart className="stat-icon-svg" />} label="Covered by Zakat (redeemed)" value={formatMoney(summary.totalCovered)} />
         <StatCard icon={<IconAlertTriangle className="stat-icon-svg" />} label="Needs manual review" value={summary.needsReview} />
       </div>
 
       <p className="dashboard-subtitle" style={{ marginTop: "-0.5rem" }}>
-        &quot;Covered by Zakat&quot; is a best-effort match against actual course purchases (same program, purchased at
-        or after the award&apos;s review date), priced against the highest amount anyone paid for that same course —
-        not the order the discount code was redeemed on, since that link isn&apos;t recorded anywhere. Records that
-        couldn&apos;t be matched to exactly one purchase are excluded from the total and flagged &quot;Needs review&quot;
-        below.
+        &quot;Covered by Zakat&quot; comes from the actual Squarespace discount redeemed at checkout (the FAID promo
+        code Financial Aid issues) — the exact amount Squarespace discounted, not an estimate. A recipient who hasn&apos;t
+        registered yet, or whose account has more than one FAID redemption that the award percentage can&apos;t
+        disambiguate, is excluded from the total and flagged below instead of guessed at.
       </p>
 
       <div className="filter-bar">
@@ -433,7 +416,7 @@ export default function ScholarshipsClient() {
                   <th>Status</th>
                   <th>Zakat</th>
                   <th>Award</th>
-                  <th>Matched purchase</th>
+                  <th>Redeemed discount</th>
                   <th>Covered by Zakat</th>
                 </tr>
               </thead>
@@ -469,17 +452,14 @@ export default function ScholarshipsClient() {
                         )}
                       </td>
                       <td data-label="Award">{s.need || "—"}</td>
-                      <td data-label="Matched purchase">
+                      <td data-label="Redeemed discount">
                         {row.match === null && "—"}
-                        {row.match?.kind === "no-purchase-found" && <span className="status-pill warn">Not yet enrolled</span>}
-                        {row.match?.kind === "ambiguous" && <span className="status-pill warn">{row.match.courses.length} candidates — review</span>}
+                        {row.match?.kind === "no-discount-found" && <span className="status-pill warn">Not redeemed yet</span>}
+                        {row.match?.kind === "ambiguous" && <span className="status-pill warn">{row.match.redemptions.length} redemptions — review</span>}
                         {row.match?.kind === "matched" && (
                           <>
-                            {row.match.course.productName}
-                            <div className="student-email">
-                              paid {formatMoney(row.match.course.pricePaidValue)}
-                              {row.listPrice !== null && ` of ${formatMoney(row.listPrice)}`}
-                            </div>
+                            {row.match.redemption.promoCode}
+                            <div className="student-email">{row.match.redemption.productName}</div>
                           </>
                         )}
                       </td>
