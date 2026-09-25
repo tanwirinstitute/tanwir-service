@@ -14,17 +14,23 @@
  * field linking a scholarships/{id} doc to a specific order, so an applicant
  * with more than one FAID redemption (one Firestore account can cover
  * several family members, or several years of the same program) is narrowed
- * down by, in order: the code's embedded year matching the award's review
- * year, the redeemed course's program family (reusing coursePrograms.ts —
- * same grouping the Registrations dashboard uses) matching the award's
- * program, then the award's requested percentage matching the code's
- * embedded percentage. Whatever's still tied after all three is left
- * "ambiguous" rather than guessed at — in practice that's almost always
- * literal siblings in the same program, same year, same award percentage,
- * sharing one account, which genuinely can't be told apart without a link
- * this data doesn't have.
+ * down by, in order: the enrolled student's own name (from the "Enter Names
+ * Below" checkout question some programs use — @/lib/enrolleeNames, same
+ * source the Registrations dashboard reads for attendance) matching the
+ * award's applicant, the code's embedded year matching the award's review
+ * year, the redeemed course's program family (reusing coursePrograms.ts)
+ * matching the award's program, then the award's requested percentage
+ * matching the code's embedded percentage. Whatever's still tied after all
+ * four is left "ambiguous" rather than guessed at — confirmed against real
+ * cases (Sep 2026) this is almost always an order predating that checkout
+ * question, so there's no enrollee name to go on and the redemptions really
+ * are indistinguishable siblings in the same program/year/percentage.
  */
 import { courseGroupName } from "./coursePrograms";
+
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
 
 export const SCHOLARSHIP_CUTOFF_ISO = "2026-08-20T00:00:00.000Z";
 const SCHOLARSHIP_CUTOFF_MS = Date.parse(SCHOLARSHIP_CUTOFF_ISO);
@@ -104,6 +110,8 @@ export interface CoursePurchase {
   productName: string;
   pricePaidValue: number;
   discountLines: CourseDiscountLine[];
+  /** From @/lib/enrolleeNames(formResponses) — [] when the order predates that checkout question. */
+  enrolleeNames: string[];
 }
 
 export interface FaidRedemption {
@@ -112,6 +120,7 @@ export interface FaidRedemption {
   promoCode: string;
   faid: FaidCode;
   amountValue: number;
+  enrolleeNames: string[];
 }
 
 /** Every FAID-code redemption across a student's course purchases. */
@@ -127,6 +136,7 @@ export function extractFaidRedemptions(courses: CoursePurchase[]): FaidRedemptio
         promoCode: line.promoCode,
         faid,
         amountValue: line.amountValue,
+        enrolleeNames: course.enrolleeNames,
       });
     }
   }
@@ -146,6 +156,7 @@ export type ScholarshipMatch =
  * Whatever's left when a step gets down to exactly one is the match.
  */
 export function matchScholarshipToDiscount(
+  applicantFullName: string | null,
   needPercent: number | null,
   reviewYear: string | null,
   programGroup: string | null,
@@ -154,6 +165,13 @@ export function matchScholarshipToDiscount(
   if (redemptions.length === 0) return { kind: "no-discount-found" };
 
   let pool = redemptions;
+
+  if (applicantFullName) {
+    const normalizedApplicant = normalizeName(applicantFullName);
+    const byName = pool.filter((r) => r.enrolleeNames.some((n) => normalizeName(n) === normalizedApplicant));
+    if (byName.length > 0) pool = byName;
+  }
+  if (pool.length === 1) return { kind: "matched", redemption: pool[0] };
 
   if (reviewYear !== null) {
     const byYear = pool.filter((r) => r.faid.year === reviewYear);

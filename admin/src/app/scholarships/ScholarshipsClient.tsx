@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, collectionGroup, onSnapshot, Timestamp } from "firebase/firestore";
 import { getClientAuth, getClientDb } from "@/lib/firebaseClient";
+import { enrolleeNames } from "@/lib/enrolleeNames";
 import SignOutButton from "../SignOutButton";
 import type { ScholarshipRecord } from "@/types/scholarship";
 import type { CourseRecord } from "@/types/student";
@@ -162,7 +163,14 @@ interface Row {
 function computeMatch(s: ScholarshipRecord, reviewMillis: number | null, courses: Map<string, CoursePurchase[]>): ScholarshipMatch {
   const studentId = (s.email ?? "").trim().toLowerCase();
   const redemptions = extractFaidRedemptions(courses.get(studentId) ?? []);
-  return matchScholarshipToDiscount(parseAwardPercentage(s.need), twoDigitYear(reviewMillis), scholarshipProgramGroup(s.course), redemptions);
+  const applicantFullName = [s.firstName, s.lastName].filter(Boolean).join(" ") || null;
+  return matchScholarshipToDiscount(
+    applicantFullName,
+    parseAwardPercentage(s.need),
+    twoDigitYear(reviewMillis),
+    scholarshipProgramGroup(s.course),
+    redemptions
+  );
 }
 
 export default function ScholarshipsClient() {
@@ -233,6 +241,7 @@ export default function ScholarshipsClient() {
               promoCode: d.promoCode,
               amountValue: Number.parseFloat(d.amount?.value ?? "0") || 0,
             })),
+            enrolleeNames: enrolleeNames(data.formResponses),
           };
           const list = byStudent.get(studentId) ?? [];
           list.push(purchase);
