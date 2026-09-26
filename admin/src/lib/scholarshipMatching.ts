@@ -25,8 +25,20 @@
  * cases (Sep 2026) this is almost always an order predating that checkout
  * question, so there's no enrollee name to go on and the redemptions really
  * are indistinguishable siblings in the same program/year/percentage.
+ *
+ * The redeemed discount's own `amount` is NOT the right number for "how
+ * much did this award cost in Zakat funds" — when the recipient chose a
+ * payment plan, courseSync.ts only ever captures the first installment's
+ * order (confirmed against live order data, Sep 2026: the same course
+ * recurs across a new order roughly every 30 days, and the sync's
+ * dedupe-by-lineItemId permanently skips every one after the first), so
+ * `amount` reflects one installment, not the full plan. The full committed
+ * amount is the course's real price (coursePricing.ts, hand-entered — nothing
+ * in Squarespace's Orders API or this project's Firestore data exposes it)
+ * times the redeemed code's own percentage.
  */
 import { courseGroupName } from "./coursePrograms";
+import { getCourseListPrice } from "./coursePricing";
 
 function normalizeName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
@@ -192,6 +204,18 @@ export function matchScholarshipToDiscount(
   if (pool.length === 1) return { kind: "matched", redemption: pool[0] };
 
   return { kind: "ambiguous", redemptions: pool };
+}
+
+/**
+ * The full amount a matched award actually costs in Zakat funds: the
+ * course's real price times the redeemed code's own percentage — not
+ * `redemption.amountValue`, which can be just one payment-plan installment
+ * (see module docblock). Null when the course isn't in coursePricing.ts yet.
+ */
+export function committedAmount(redemption: FaidRedemption): number | null {
+  const listPrice = getCourseListPrice(redemption.productName);
+  if (listPrice === null) return null;
+  return (listPrice * redemption.faid.percentage) / 100;
 }
 
 export function formatMoney(value: number): string {

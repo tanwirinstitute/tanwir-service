@@ -12,6 +12,7 @@ import SignOutButton from "../SignOutButton";
 import type { ScholarshipRecord } from "@/types/scholarship";
 import type { CourseRecord } from "@/types/student";
 import {
+  committedAmount,
   extractFaidRedemptions,
   formatMoney,
   isOnOrAfterCutoff,
@@ -271,7 +272,7 @@ export default function ScholarshipsClient() {
         }
 
         const match = computeMatch(s, reviewMillis, courses);
-        const amountCovered = match.kind === "matched" ? match.redemption.amountValue : null;
+        const amountCovered = match.kind === "matched" ? committedAmount(match.redemption) : null;
 
         return { scholarship: { id, ...s }, status, zakat, reviewMillis, match, amountCovered };
       })
@@ -308,8 +309,9 @@ export default function ScholarshipsClient() {
     let needsReview = 0;
     for (const r of zakatConsented) {
       const match = computeMatch(r.s, r.reviewMillis, courses);
-      if (match.kind === "matched") {
-        totalCovered += match.redemption.amountValue;
+      const amount = match.kind === "matched" ? committedAmount(match.redemption) : null;
+      if (amount !== null) {
+        totalCovered += amount;
       } else {
         needsReview += 1;
       }
@@ -378,15 +380,16 @@ export default function ScholarshipsClient() {
           onClick={() => setZakatFilter(zakatFilter === "yes" ? "all" : "yes")}
           active={zakatFilter === "yes"}
         />
-        <StatCard icon={<IconHeart className="stat-icon-svg" />} label="Covered by Zakat (redeemed)" value={formatMoney(summary.totalCovered)} />
+        <StatCard icon={<IconHeart className="stat-icon-svg" />} label="Covered by Zakat" value={formatMoney(summary.totalCovered)} />
         <StatCard icon={<IconAlertTriangle className="stat-icon-svg" />} label="Needs manual review" value={summary.needsReview} />
       </div>
 
       <p className="dashboard-subtitle" style={{ marginTop: "-0.5rem" }}>
-        &quot;Covered by Zakat&quot; comes from the actual Squarespace discount redeemed at checkout (the FAID promo
-        code Financial Aid issues) — the exact amount Squarespace discounted, not an estimate. A recipient who hasn&apos;t
-        registered yet, or whose account has more than one FAID redemption that the award percentage can&apos;t
-        disambiguate, is excluded from the total and flagged below instead of guessed at.
+        &quot;Covered by Zakat&quot; is the course&apos;s full price times the percentage on the FAID promo code
+        actually redeemed at checkout — not the amount on that order, which is only one installment for a recipient
+        on a payment plan. A recipient who hasn&apos;t registered yet, whose account has more than one FAID
+        redemption that can&apos;t be disambiguated, or whose course has no price on file yet, is excluded from the
+        total and flagged below instead of guessed at.
       </p>
 
       <div className="filter-bar">
@@ -468,7 +471,12 @@ export default function ScholarshipsClient() {
                         {row.match?.kind === "matched" && (
                           <>
                             {row.match.redemption.promoCode}
-                            <div className="student-email">{row.match.redemption.productName}</div>
+                            <div className="student-email">
+                              {row.match.redemption.productName}
+                              {row.amountCovered !== null &&
+                                row.match.redemption.amountValue < row.amountCovered &&
+                                ` · payment plan, ${formatMoney(row.match.redemption.amountValue)} so far`}
+                            </div>
                           </>
                         )}
                       </td>
