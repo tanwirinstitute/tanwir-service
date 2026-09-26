@@ -17,14 +17,16 @@
  * down by, in order: the enrolled student's own name (from the "Enter Names
  * Below" checkout question some programs use — @/lib/enrolleeNames, same
  * source the Registrations dashboard reads for attendance) matching the
- * award's applicant, the code's embedded year matching the award's review
- * year, the redeemed course's program family (reusing coursePrograms.ts)
- * matching the award's program, then the award's requested percentage
- * matching the code's embedded percentage. Whatever's still tied after all
- * four is left "ambiguous" rather than guessed at — confirmed against real
- * cases (Sep 2026) this is almost always an order predating that checkout
- * question, so there's no enrollee name to go on and the redemptions really
- * are indistinguishable siblings in the same program/year/percentage.
+ * award's applicant; the specific product a multi-level scholarship course
+ * label is known to correspond to (SCHOLARSHIP_COURSE_TO_PRODUCT_NAME below
+ * — e.g. "Prophetic Guidance - Post Grad" always redeems against "The
+ * Journey"); the code's embedded year matching the award's review year; the
+ * redeemed course's program family (reusing coursePrograms.ts) matching the
+ * award's program; then the award's requested percentage matching the
+ * code's embedded percentage. Whatever's still tied after all five is left
+ * "ambiguous" rather than guessed at — confirmed against real cases (Sep
+ * 2026) that's siblings in the same program/level/year/percentage sharing
+ * one account, with no enrollee name on file to tell them apart.
  *
  * The redeemed discount's own `amount` is NOT the right number for "how
  * much did this award cost in Zakat funds" — when the recipient chose a
@@ -37,7 +39,7 @@
  * in Squarespace's Orders API or this project's Firestore data exposes it)
  * times the redeemed code's own percentage.
  */
-import { courseGroupName } from "./coursePrograms";
+import { courseGroupName, normalizeCourseName } from "./coursePrograms";
 import { getCourseListPrice } from "./coursePricing";
 
 function normalizeName(name: string): string {
@@ -86,6 +88,28 @@ export function scholarshipProgramGroup(course: string | null | undefined): stri
   const trimmed = (course ?? "").trim();
   if (!trimmed) return null;
   return SCHOLARSHIP_COURSE_TO_PROGRAM_GROUP[trimmed] ?? courseGroupName(trimmed);
+}
+
+/**
+ * Finer than scholarshipProgramGroup: some scholarship course labels name
+ * one specific level within a multi-year program, not just the program as a
+ * whole ("Prophetic Guidance - Year 2" and "- Post Grad" both roll up to the
+ * same "Prophetic Guidance" group as each other and as "- Year 1") — this
+ * resolves that level to the one purchased product it actually corresponds
+ * to, curated the same way as coursePrograms.ts's own PROGRAM_BY_COURSE
+ * table (e.g. "The Journey" is confirmed there as PG's Post Grad course).
+ * Matched against normalizeCourseName, not the raw productName, so it
+ * doesn't care which term/session variant was purchased.
+ */
+const SCHOLARSHIP_COURSE_TO_PRODUCT_NAME: Record<string, string> = {
+  "Prophetic Guidance - Year 1": "Foundations Year 1",
+  "Prophetic Guidance - Year 2": "Foundations Year 2",
+  "Prophetic Guidance - Post Grad": "The Journey",
+};
+
+export function scholarshipExpectedProductName(course: string | null | undefined): string | null {
+  const trimmed = (course ?? "").trim();
+  return trimmed ? SCHOLARSHIP_COURSE_TO_PRODUCT_NAME[trimmed] ?? null : null;
 }
 
 /** Two-digit year matching the FAID code's own `-YY-` segment (api/src/lib/discountCode.ts). */
@@ -172,6 +196,7 @@ export function matchScholarshipToDiscount(
   needPercent: number | null,
   reviewYear: string | null,
   programGroup: string | null,
+  expectedProductName: string | null,
   redemptions: FaidRedemption[]
 ): ScholarshipMatch {
   if (redemptions.length === 0) return { kind: "no-discount-found" };
@@ -182,6 +207,12 @@ export function matchScholarshipToDiscount(
     const normalizedApplicant = normalizeName(applicantFullName);
     const byName = pool.filter((r) => r.enrolleeNames.some((n) => normalizeName(n) === normalizedApplicant));
     if (byName.length > 0) pool = byName;
+  }
+  if (pool.length === 1) return { kind: "matched", redemption: pool[0] };
+
+  if (expectedProductName !== null) {
+    const byProduct = pool.filter((r) => normalizeCourseName(r.productName) === expectedProductName);
+    if (byProduct.length > 0) pool = byProduct;
   }
   if (pool.length === 1) return { kind: "matched", redemption: pool[0] };
 

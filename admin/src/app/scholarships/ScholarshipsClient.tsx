@@ -20,6 +20,7 @@ import {
   normalizeStatus,
   normalizeZakat,
   parseAwardPercentage,
+  scholarshipExpectedProductName,
   scholarshipProgramGroup,
   twoDigitYear,
   SCHOLARSHIP_CUTOFF_ISO,
@@ -170,6 +171,7 @@ function computeMatch(s: ScholarshipRecord, reviewMillis: number | null, courses
     parseAwardPercentage(s.need),
     twoDigitYear(reviewMillis),
     scholarshipProgramGroup(s.course),
+    scholarshipExpectedProductName(s.course),
     redemptions
   );
 }
