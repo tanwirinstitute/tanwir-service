@@ -23,8 +23,30 @@ export interface ScholarshipRecord {
   status: string | null;
   /** Requested/awarded aid, e.g. "75%". Free text, not guaranteed numeric. */
   need: string | null;
-  /** Consent to fund this award from Zakat-eligible donations. "Yes" / "No". */
+  /**
+   * Whether the applicant is Zakat-*eligible* — NOT consent to actually fund
+   * their award with Zakat money, despite the name (Sep 2026 correction).
+   * "Yes" / "No".
+   */
   zakat: string | null;
+  /**
+   * Whether the applicant has actually consented to their award being
+   * funded from Zakat-eligible donations — separate from `zakat` above.
+   * Only ever written when true (no record has been seen with a negative
+   * value — absence means "not yet asked/recorded," not "no"). Three
+   * formats seen in production (Sep 2026 audit): `true` (boolean, paired
+   * with `consentedAt`), `"Yes, I consent"` (the current standard — going
+   * forward, records should be normalized to this string), and a legacy
+   * bare `"Yes"`. Always go through normalizeConsented, never compare
+   * directly.
+   */
+  consented?: string | boolean | null;
+  consentedAt?: unknown;
+  /**
+   * Unrelated to consent despite the name collision — free text on the
+   * `employment` question (e.g. "Self-employed - real estate (commercial)").
+   */
+  details?: string | null;
   reason: string | null;
   interest: string | null;
   comments: string | null;

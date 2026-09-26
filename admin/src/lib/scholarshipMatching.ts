@@ -1,8 +1,18 @@
 /**
- * Matches an approved, Zakat-consented scholarship application to the
- * discount actually redeemed for it, so the Scholarships module can report
- * a dollar amount covered by Zakat. Pure logic only — no firebase imports —
- * so it's safe to unit test and to bundle into the client component.
+ * Matches an approved, Zakat-*eligible*, Zakat-*consented* scholarship
+ * application to the discount actually redeemed for it, so the Scholarships
+ * module can report a dollar amount covered by Zakat. Pure logic only — no
+ * firebase imports — so it's safe to unit test and to bundle into the
+ * client component.
+ *
+ * `zakat` and `consented` are two different facts about the applicant (Sep
+ * 2026 correction) — eligible for Zakat funding vs. having actually
+ * consented to it being used on their award — and a record only counts
+ * toward "Covered by Zakat" when both are "yes". `consented` has no
+ * negative value anywhere in production (Sep 2026 audit of all 148
+ * records) and three historical formats — see normalizeConsented — so its
+ * absence, or any value normalizeConsented doesn't recognize, means "not
+ * yet asked/recorded," not "no".
  *
  * Financial-aid awards are issued as Squarespace promo codes named
  * `FAID-<programCode>-<percentage>-<year>-<suffix>` (api/src/lib/discountCode.ts)
@@ -59,6 +69,26 @@ export function normalizeZakat(value: string | null | undefined): "yes" | "no" |
   if (v === "no") return "no";
   return "unknown";
 }
+
+/**
+ * `consented` has been written in three shapes in production (Sep 2026
+ * audit): `true` (boolean, paired with a `consentedAt` timestamp), the
+ * current standard `"Yes, I consent"`, and a legacy bare `"Yes"`. No record
+ * has ever carried an explicit negative — the field is only written when
+ * consent was given — so anything else (including absence) is "unknown",
+ * never "no".
+ */
+export function normalizeConsented(value: unknown): "yes" | "unknown" {
+  if (value === true) return "yes";
+  if (typeof value === "string") {
+    const v = value.trim().toLowerCase();
+    if (v === "yes" || v === "yes, i consent") return "yes";
+  }
+  return "unknown";
+}
+
+/** The canonical format for `consented` going forward — normalize existing records to this string. */
+export const CONSENTED_CANONICAL_VALUE = "Yes, I consent";
 
 export function normalizeStatus(value: string | null | undefined): "approved" | "denied" | "unknown" {
   const v = (value ?? "").trim().toLowerCase();

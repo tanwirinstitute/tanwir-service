@@ -17,6 +17,7 @@ import {
   formatMoney,
   isOnOrAfterCutoff,
   matchScholarshipToDiscount,
+  normalizeConsented,
   normalizeStatus,
   normalizeZakat,
   parseAwardPercentage,
@@ -30,6 +31,7 @@ import {
 
 type ScholarshipWithId = ScholarshipRecord & { id: string };
 type ZakatFilter = "all" | "yes" | "no";
+type ConsentFilter = "all" | "yes";
 type StatusFilter = "all" | "approved" | "denied";
 
 function toMillis(value: unknown): number | null {
@@ -156,9 +158,12 @@ function ScholarshipsSkeleton() {
 interface Row {
   scholarship: ScholarshipWithId;
   status: "approved" | "denied" | "unknown";
+  /** Zakat-*eligible* — not consent; see @/lib/scholarshipMatching docblock. */
   zakat: "yes" | "no" | "unknown";
+  /** Actually consented to their award being funded from Zakat — separate from `zakat` above. */
+  consented: "yes" | "unknown";
   reviewMillis: number | null;
-  match: ScholarshipMatch | null; // null when not eligible for matching (not approved+zakat=yes)
+  match: ScholarshipMatch | null; // null unless approved+eligible+consented
   amountCovered: number | null;
 }
 
@@ -185,6 +190,7 @@ export default function ScholarshipsClient() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("approved");
   const [zakatFilter, setZakatFilter] = useState<ZakatFilter>("all");
+  const [consentFilter, setConsentFilter] = useState<ConsentFilter>("all");
 
   const signOutAndRedirect = useCallback(async () => {
     await fetch("/api/auth/session", { method: "DELETE" }).catch(() => {});
@@ -266,21 +272,23 @@ export default function ScholarshipsClient() {
       .map(([id, s]): Row => {
         const status = normalizeStatus(s.status);
         const zakat = normalizeZakat(s.zakat);
+        const consented = normalizeConsented(s.consented);
         const reviewMillis = toMillis(s.reviewDate) ?? toMillis(s.submittedAt);
 
-        const eligibleForMatching = status === "approved" && zakat === "yes";
+        const eligibleForMatching = status === "approved" && zakat === "yes" && consented === "yes";
         if (!eligibleForMatching) {
-          return { scholarship: { id, ...s }, status, zakat, reviewMillis, match: null, amountCovered: null };
+          return { scholarship: { id, ...s }, status, zakat, consented, reviewMillis, match: null, amountCovered: null };
         }
 
         const match = computeMatch(s, reviewMillis, courses);
         const amountCovered = match.kind === "matched" ? committedAmount(match.redemption) : null;
 
-        return { scholarship: { id, ...s }, status, zakat, reviewMillis, match, amountCovered };
+        return { scholarship: { id, ...s }, status, zakat, consented, reviewMillis, match, amountCovered };
       })
       .filter((row) => isOnOrAfterCutoff(row.reviewMillis))
       .filter((row) => statusFilter === "all" || row.status === statusFilter)
       .filter((row) => zakatFilter === "all" || row.zakat === zakatFilter)
+      .filter((row) => consentFilter === "all" || row.consented === consentFilter)
       .filter((row) => {
         const q = query.trim().toLowerCase();
         if (!q) return true;
@@ -292,24 +300,26 @@ export default function ScholarshipsClient() {
           .includes(q);
       })
       .sort((a, b) => (b.reviewMillis ?? 0) - (a.reviewMillis ?? 0));
-  }, [scholarships, courses, statusFilter, zakatFilter, query]);
+  }, [scholarships, courses, statusFilter, zakatFilter, consentFilter, query]);
 
   const summary = useMemo(() => {
     const inScope = Array.from(scholarships.entries())
       .map(([id, s]) => {
         const status = normalizeStatus(s.status);
         const zakat = normalizeZakat(s.zakat);
+        const consented = normalizeConsented(s.consented);
         const reviewMillis = toMillis(s.reviewDate) ?? toMillis(s.submittedAt);
-        return { id, s, status, zakat, reviewMillis };
+        return { id, s, status, zakat, consented, reviewMillis };
       })
       .filter((r) => isOnOrAfterCutoff(r.reviewMillis));
 
     const approved = inScope.filter((r) => r.status === "approved");
-    const zakatConsented = approved.filter((r) => r.zakat === "yes");
+    const eligible = approved.filter((r) => r.zakat === "yes");
+    const consented = eligible.filter((r) => r.consented === "yes");
 
     let totalCovered = 0;
     let needsReview = 0;
-    for (const r of zakatConsented) {
+    for (const r of consented) {
       const match = computeMatch(r.s, r.reviewMillis, courses);
       const amount = match.kind === "matched" ? committedAmount(match.redemption) : null;
       if (amount !== null) {
@@ -321,7 +331,8 @@ export default function ScholarshipsClient() {
 
     return {
       approvedCount: approved.length,
-      zakatConsentedCount: zakatConsented.length,
+      eligibleCount: eligible.length,
+      consentedCount: consented.length,
       totalCovered,
       needsReview,
     };
@@ -347,7 +358,7 @@ export default function ScholarshipsClient() {
     return <ScholarshipsSkeleton />;
   }
 
-  const filtersActive = query.trim() !== "" || statusFilter !== "approved" || zakatFilter !== "all";
+  const filtersActive = query.trim() !== "" || statusFilter !== "approved" || zakatFilter !== "all" || consentFilter !== "all";
 
   return (
     <main className="dashboard-shell">
@@ -377,19 +388,28 @@ export default function ScholarshipsClient() {
         />
         <StatCard
           icon={<IconHeart className="stat-icon-svg" />}
-          label="Zakat-consented"
-          value={summary.zakatConsentedCount}
+          label="Zakat-eligible"
+          value={summary.eligibleCount}
           onClick={() => setZakatFilter(zakatFilter === "yes" ? "all" : "yes")}
           active={zakatFilter === "yes"}
+        />
+        <StatCard
+          icon={<IconHeart className="stat-icon-svg" />}
+          label="Consented"
+          value={summary.consentedCount}
+          onClick={() => setConsentFilter(consentFilter === "yes" ? "all" : "yes")}
+          active={consentFilter === "yes"}
         />
         <StatCard icon={<IconHeart className="stat-icon-svg" />} label="Covered by Zakat" value={formatMoney(summary.totalCovered)} />
         <StatCard icon={<IconAlertTriangle className="stat-icon-svg" />} label="Needs manual review" value={summary.needsReview} />
       </div>
 
       <p className="dashboard-subtitle" style={{ marginTop: "-0.5rem" }}>
-        &quot;Covered by Zakat&quot; is the course&apos;s full price times the percentage on the FAID promo code
-        actually redeemed at checkout — not the amount on that order, which is only one installment for a recipient
-        on a payment plan. A recipient who hasn&apos;t registered yet, whose account has more than one FAID
+        &quot;Zakat-eligible&quot; and &quot;Consented&quot; are two different facts — eligible for Zakat funding vs.
+        having actually agreed to it being used on their award — and only an approved award with both counts toward
+        &quot;Covered by Zakat.&quot; That figure is the course&apos;s full price times the percentage on the FAID
+        promo code actually redeemed at checkout — not the amount on that order, which is only one installment for a
+        recipient on a payment plan. A recipient who hasn&apos;t registered yet, whose account has more than one FAID
         redemption that can&apos;t be disambiguated, or whose course has no price on file yet, is excluded from the
         total and flagged below instead of guessed at.
       </p>
@@ -412,9 +432,13 @@ export default function ScholarshipsClient() {
           <option value="denied">Denied</option>
         </select>
         <select value={zakatFilter} onChange={(e) => setZakatFilter(e.target.value as ZakatFilter)}>
-          <option value="all">Zakat: all</option>
-          <option value="yes">Zakat: yes</option>
-          <option value="no">Zakat: no</option>
+          <option value="all">Eligible: all</option>
+          <option value="yes">Eligible: yes</option>
+          <option value="no">Eligible: no</option>
+        </select>
+        <select value={consentFilter} onChange={(e) => setConsentFilter(e.target.value as ConsentFilter)}>
+          <option value="all">Consent: all</option>
+          <option value="yes">Consent: recorded</option>
         </select>
       </div>
 
@@ -428,7 +452,8 @@ export default function ScholarshipsClient() {
                   <th>Program</th>
                   <th>Reviewed</th>
                   <th>Status</th>
-                  <th>Zakat</th>
+                  <th>Eligible</th>
+                  <th>Consent</th>
                   <th>Award</th>
                   <th>Redeemed discount</th>
                   <th>Covered by Zakat</th>
@@ -458,11 +483,18 @@ export default function ScholarshipsClient() {
                           {row.status === "unknown" ? "unset" : row.status}
                         </span>
                       </td>
-                      <td data-label="Zakat">
+                      <td data-label="Eligible">
                         {row.zakat === "unknown" ? (
                           <span className="status-pill warn">unset</span>
                         ) : (
                           <span className={row.zakat === "yes" ? "status-pill ok" : "source-chip"}>{row.zakat}</span>
+                        )}
+                      </td>
+                      <td data-label="Consent">
+                        {row.consented === "yes" ? (
+                          <span className="status-pill ok">yes</span>
+                        ) : (
+                          <span className="source-chip">not recorded</span>
                         )}
                       </td>
                       <td data-label="Award">{s.need || "—"}</td>
