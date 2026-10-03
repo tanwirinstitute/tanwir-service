@@ -163,7 +163,8 @@ interface Row {
   /** Actually consented to their award being funded from Zakat — separate from `zakat` above. */
   consented: "yes" | "unknown";
   reviewMillis: number | null;
-  match: ScholarshipMatch | null; // null unless approved+eligible+consented
+  /** Shown whenever a redemption exists, regardless of eligibility/consent — see amountCovered for the consent-gated figure. */
+  match: ScholarshipMatch | null;
   amountCovered: number | null;
 }
 
@@ -275,13 +276,11 @@ export default function ScholarshipsClient() {
         const consented = normalizeConsented(s.consented);
         const reviewMillis = toMillis(s.reviewDate) ?? toMillis(s.submittedAt);
 
+        // Redeemed discount is real regardless of consent — show it whenever it exists.
+        // Only the dollar figure counted toward "Covered by Zakat" waits on consent.
         const eligibleForMatching = status === "approved" && zakat === "yes" && consented === "yes";
-        if (!eligibleForMatching) {
-          return { scholarship: { id, ...s }, status, zakat, consented, reviewMillis, match: null, amountCovered: null };
-        }
-
         const match = computeMatch(s, reviewMillis, courses);
-        const amountCovered = match.kind === "matched" ? committedAmount(match.redemption) : null;
+        const amountCovered = eligibleForMatching && match.kind === "matched" ? committedAmount(match.redemption) : null;
 
         return { scholarship: { id, ...s }, status, zakat, consented, reviewMillis, match, amountCovered };
       })
