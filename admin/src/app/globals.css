@@ -1947,3 +1947,198 @@ button {
     align-self: center;
   }
 }
+
+/* --- Scholarships: edit dialog --- */
+
+/* Wider than .ec-modal (a confirm box) because this is a form: a header and
+   a sticky footer around a body that scrolls on its own, so the Save button
+   stays reachable on a short viewport. */
+.sch-dialog {
+  display: flex;
+  width: 100%;
+  max-width: 680px;
+  max-height: calc(100vh - 2rem);
+  background: #fff;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.sch-dialog form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+}
+
+.sch-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.sch-dialog-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--brand-ink);
+}
+
+.sch-dialog-meta {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: var(--gray-500);
+}
+
+.sch-dialog-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.9rem;
+  height: 1.9rem;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--gray-500);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.sch-dialog-close:hover {
+  background: var(--gray-100);
+  color: var(--brand-ink);
+}
+
+.sch-dialog-body {
+  padding: 1.25rem;
+  overflow-y: auto;
+}
+
+.sch-section-label {
+  margin: 0 0 0.6rem;
+  color: var(--gray-400);
+}
+
+.sch-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 1rem;
+  margin-bottom: 1.4rem;
+}
+
+.sch-grid:last-child {
+  margin-bottom: 0;
+}
+
+.sch-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.9rem;
+}
+
+/* Long values (email, program, an essay answer) get the full row rather than
+   half of one. */
+.sch-field-wide {
+  grid-column: 1 / -1;
+}
+
+.sch-input {
+  width: 100%;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.55rem 0.7rem;
+  color: #1a1d23;
+  background: #fff;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.sch-input:focus {
+  border-color: var(--brand-green);
+  box-shadow: 0 0 0 3px rgba(42, 96, 81, 0.14);
+}
+
+.sch-textarea {
+  min-height: 4.5rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.sch-hint-warn {
+  color: var(--warn-text);
+  font-weight: 600;
+}
+
+.sch-dialog-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.9rem 1.25rem;
+  background: var(--gray-50);
+  border-top: 1px solid var(--gray-200);
+}
+
+/* Pushed to the left edge of the footer, opposite the buttons. */
+.sch-dirty-note,
+.sch-discard-prompt {
+  margin: 0 auto 0 0;
+  font-size: 0.8rem;
+  color: var(--gray-500);
+}
+
+.sch-discard-prompt {
+  font-weight: 600;
+  color: var(--danger-text);
+}
+
+.sch-btn-danger {
+  color: var(--danger-text);
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+}
+
+.sch-btn-danger:hover:not(:disabled) {
+  background: #fde5e5;
+  border-color: var(--danger);
+}
+
+.col-edit {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+@media (max-width: 700px) {
+  .sch-dialog {
+    max-height: 100%;
+  }
+
+  .sch-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* 16px prevents iOS Safari from auto-zooming on focus. */
+  .sch-input {
+    font-size: 16px;
+  }
+
+  /* Last line of the row card, full width — the row's other cells sit in the
+     flex flow above it. */
+  .student-tr .col-edit {
+    order: 6;
+    flex: 1 1 100%;
+    width: auto;
+    text-align: left;
+    margin-top: 0.4rem;
+  }
+}

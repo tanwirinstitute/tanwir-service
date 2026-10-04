@@ -9,6 +9,7 @@ import { collection, collectionGroup, onSnapshot, Timestamp } from "firebase/fir
 import { getClientAuth, getClientDb } from "@/lib/firebaseClient";
 import { enrolleeNames } from "@/lib/enrolleeNames";
 import SignOutButton from "../SignOutButton";
+import ScholarshipEditDialog from "./ScholarshipEditDialog";
 import type { ScholarshipRecord } from "@/types/scholarship";
 import type { CourseRecord } from "@/types/student";
 import {
@@ -192,6 +193,9 @@ export default function ScholarshipsClient() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("approved");
   const [zakatFilter, setZakatFilter] = useState<ZakatFilter>("all");
   const [consentFilter, setConsentFilter] = useState<ConsentFilter>("all");
+  // The record as it was when Edit was clicked — not a live lookup, so the
+  // snapshot listener below can't reset a half-filled form underneath the user.
+  const [editing, setEditing] = useState<ScholarshipWithId | null>(null);
 
   const signOutAndRedirect = useCallback(async () => {
     await fetch("/api/auth/session", { method: "DELETE" }).catch(() => {});
@@ -456,6 +460,7 @@ export default function ScholarshipsClient() {
                   <th>Award</th>
                   <th>Redeemed discount</th>
                   <th>Covered by Zakat</th>
+                  <th aria-label="Edit" />
                 </tr>
               </thead>
               <tbody>
@@ -514,6 +519,11 @@ export default function ScholarshipsClient() {
                         )}
                       </td>
                       <td data-label="Covered by Zakat">{row.amountCovered !== null ? formatMoney(row.amountCovered) : "—"}</td>
+                      <td className="col-edit">
+                        <button type="button" className="ec-btn ec-btn-sm" onClick={() => setEditing(s)}>
+                          Edit
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -530,6 +540,8 @@ export default function ScholarshipsClient() {
           </div>
         )}
       </div>
+
+      {editing && <ScholarshipEditDialog key={editing.id} record={editing} onClose={() => setEditing(null)} />}
     </main>
   );
 }

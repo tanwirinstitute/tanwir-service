@@ -1,11 +1,14 @@
 /**
  * Financial-aid applications, submitted through per-program Squarespace
  * forms (Associates/PG/Youth/Book Club) and reviewed by the Financial Aid
- * Committee. Written entirely outside this codebase (no sync job here
+ * Committee. Created entirely outside this codebase (no sync job here
  * touches this collection) — the fields below are reverse-engineered from
- * production data, not a schema this app defines. `status` and `zakat` are
- * free-text from the review workflow, not enums, and `zakat` has been seen
- * with inconsistent casing ("Yes" and "yes") — always compare case-insensitively.
+ * production data, not a schema this app defines. The one writer here is the
+ * Scholarships page's edit dialog, which saves only the fields a human
+ * actually changed so it can't clobber anything the outside writer owns.
+ * `status` and `zakat` are free-text from the review workflow, not enums, and
+ * `zakat` has been seen with inconsistent casing ("Yes" and "yes") — always
+ * compare case-insensitively.
  */
 export interface ScholarshipRecord {
   firstName: string | null;
