@@ -15,7 +15,8 @@ export interface ScholarshipRecord {
   lastName: string | null;
   email: string | null;
   phone: string | null;
-  age: string | null;
+  /** Stored as a number on nearly every record, despite arriving from a form. */
+  age: number | string | null;
   gender: string | null;
   employment: string | null;
   /** Program applied to, e.g. "Associates Program - Year 2". Free text. */

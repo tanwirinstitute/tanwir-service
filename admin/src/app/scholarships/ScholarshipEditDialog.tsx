@@ -80,7 +80,10 @@ function formatDate(value: unknown): string | null {
 function initialForm(record: ScholarshipWithId): FormState {
   const text = {} as Record<TextKey, string>;
   for (const key of TEXT_KEYS) {
-    text[key] = record[key] ?? "";
+    // Not every "text" field is stored as a string — `age` is a number on
+    // nearly every record — so coerce for the input.
+    const value = record[key];
+    text[key] = value == null ? "" : String(value);
   }
 
   const status = normalizeStatus(record.status);
@@ -163,7 +166,11 @@ export default function ScholarshipEditDialog({
     for (const key of TEXT_KEYS) {
       const next = form.text[key].trim();
       if (next === initial.text[key].trim()) continue;
-      payload[key] = next === "" ? null : next;
+      // Keep a numeric field numeric when the edit still reads as a number,
+      // rather than silently converting it to a string.
+      const asNumber = Number(next);
+      payload[key] =
+        next === "" ? null : typeof record[key] === "number" && Number.isFinite(asNumber) ? asNumber : next;
     }
 
     if (form.status !== initial.status) {
