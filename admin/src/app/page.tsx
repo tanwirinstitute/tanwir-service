@@ -18,6 +18,11 @@ const TOOLS: { href: string; title: string; description: string }[] = [
     description: "Course registrations and materials pickup",
   },
   {
+    href: "/events",
+    title: "Event Registration",
+    description: "Registrants for Tanwir events",
+  },
+  {
     href: "/email",
     title: "Email Console",
     description: "Compose and send email to students",

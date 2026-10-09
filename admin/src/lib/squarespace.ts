@@ -1,11 +1,16 @@
 import type {
   SquarespaceOrder,
   SquarespaceOrdersResponse,
+  SquarespaceProduct,
+  SquarespaceProductsResponse,
   SquarespaceProfile,
   SquarespaceProfilesResponse,
 } from "@/types/squarespace";
 
 const SQUARESPACE_API_URL = process.env.SQUARESPACE_API_URL || "https://api.squarespace.com/1.0";
+// The Products API is only served under v2, unlike Orders/Profiles above.
+const SQUARESPACE_PRODUCTS_API_URL = SQUARESPACE_API_URL.replace(/\/1\.0\/?$/, "/v2");
+const PRODUCTS_PER_REQUEST = 50;
 
 /**
  * Fetches every order modified in [modifiedAfter, modifiedBefore), following
@@ -85,4 +90,56 @@ export async function fetchProfileByEmail(email: string): Promise<SquarespacePro
     profiles[0] ??
     null
   );
+}
+
+async function fetchProductsRequest(ids: string[], apiKey: string): Promise<SquarespaceProduct[] | null> {
+  const url = `${SQUARESPACE_PRODUCTS_API_URL}/commerce/products/${ids.map(encodeURIComponent).join(",")}`;
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Squarespace Products API responded ${response.status}: ${body}`);
+  }
+
+  const data: SquarespaceProductsResponse = await response.json();
+  return data.products ?? [];
+}
+
+/**
+ * Looks up products by id (up to 50 per request). Products that no longer
+ * exist — e.g. last year's deleted "Annual Arafat Program" listing, still
+ * referenced by old orders — are simply absent from the result. Squarespace
+ * 404s a whole batch when any one id is missing, so a 404'd batch is retried
+ * id-by-id to salvage the rest. Requires the API key to carry the "Products"
+ * permission; a 403 is surfaced loudly, same as fetchProfileByEmail.
+ */
+export async function fetchProductsByIds(ids: string[]): Promise<SquarespaceProduct[]> {
+  const apiKey = process.env.SQUARESPACE_API_KEY;
+  if (!apiKey) {
+    throw new Error("SQUARESPACE_API_KEY is not set");
+  }
+
+  const products: SquarespaceProduct[] = [];
+  for (let i = 0; i < ids.length; i += PRODUCTS_PER_REQUEST) {
+    const batch = ids.slice(i, i + PRODUCTS_PER_REQUEST);
+    const result = await fetchProductsRequest(batch, apiKey);
+    if (result) {
+      products.push(...result);
+      continue;
+    }
+    for (const id of batch) {
+      products.push(...((await fetchProductsRequest([id], apiKey)) ?? []));
+    }
+  }
+
+  return products;
 }

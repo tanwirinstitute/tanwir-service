@@ -104,3 +104,25 @@ export interface SquarespaceProfilesResponse {
   profiles?: SquarespaceProfile[];
   pagination?: SquarespacePagination;
 }
+
+/**
+ * Products API v2 shape (documented at developers.squarespace.com, Oct
+ * 2026). Note there is no `categories` field — store categories aren't
+ * exposed by any Squarespace API (checked the public ?format=json feed
+ * too), which is why events are flagged with a product *tag* instead. Only
+ * PHYSICAL/SERVICE/GIFT_CARD/DIGITAL products exist here; PAYWALL_PRODUCT
+ * line items have no Products API counterpart.
+ */
+export interface SquarespaceProduct {
+  id: string;
+  type: string;
+  name: string;
+  tags?: string[] | null;
+  isVisible?: boolean;
+  createdOn?: string;
+  [key: string]: unknown;
+}
+
+export interface SquarespaceProductsResponse {
+  products?: SquarespaceProduct[];
+}

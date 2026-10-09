@@ -2,6 +2,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getDb } from "@/lib/firebase";
 import { fetchOrders, fetchProfileByEmail } from "@/lib/squarespace";
 import { deriveTerm } from "./academicTerm";
+import { buildEventRegistration, createEventClassifier, EVENT_REGISTRATIONS_COLLECTION } from "./eventRegistrations";
 import type {
   SquarespaceFormSubmissionField,
   SquarespaceLineItem,
@@ -23,15 +24,6 @@ const SYNC_STATE_DOC = "squarespaceOrders";
 const COURSE_LINE_ITEM_TYPES = new Set(["SERVICE", "PAYWALL_PRODUCT"]);
 
 /**
- * One-off events sold the same way as courses (SERVICE line items), so
- * lineItemType alone can't tell them apart — confirmed against live order
- * data, Aug 2026. Matched by name rather than productId: "Annual Arafat
- * Program" is recreated as a new Squarespace product every year (two
- * different productIds already seen), so the name is the only stable key.
- */
-const EXCLUDED_EVENT_PRODUCT_NAMES = new Set(["Commemoration of the Battle of Badr", "Annual Arafat Program"]);
-
-/**
  * A payment-plan installment bumps an order's modifiedOn without changing
  * what was purchased, so the same order resurfaces on a later poll. The
  * overlap buffer covers clock skew / boundary misses between runs.
@@ -44,7 +36,8 @@ export interface SyncSummary {
   coursesSynced: number;
   coursesAlreadySynced: number;
   lineItemsSkippedNonCourse: number;
-  lineItemsSkippedEvent: number;
+  eventRegistrationsSynced: number;
+  eventRegistrationsAlreadySynced: number;
   ordersSkippedNoEmail: number;
   studentsNamedFromProfile: number;
   studentsNamedFromBilling: number;
@@ -221,7 +214,8 @@ export interface RunCourseSyncOptions {
 /**
  * Fetches orders since the last successful sync (or `options.since` for a
  * one-off backfill), records one course doc per course-type line item under
- * students/{email}/courses/{lineItemId}, and advances the sync cursor.
+ * students/{email}/courses/{lineItemId} (and one eventRegistrations/
+ * {lineItemId} doc per event line item), and advances the sync cursor.
  * Squarespace accounts now handle login, so this only tracks enrollment (no
  * password/account creation).
  */
@@ -248,7 +242,8 @@ export async function runCourseSync(options?: RunCourseSyncOptions): Promise<Syn
     coursesSynced: 0,
     coursesAlreadySynced: 0,
     lineItemsSkippedNonCourse: 0,
-    lineItemsSkippedEvent: 0,
+    eventRegistrationsSynced: 0,
+    eventRegistrationsAlreadySynced: 0,
     ordersSkippedNoEmail: 0,
     studentsNamedFromProfile: 0,
     studentsNamedFromBilling: 0,
@@ -257,14 +252,39 @@ export async function runCourseSync(options?: RunCourseSyncOptions): Promise<Syn
 
   const profileCache = new Map<string, Awaited<ReturnType<typeof fetchProfileByEmail>>>();
 
-  for (const order of orders) {
-    const courseTypeLineItems = (order.lineItems ?? []).filter((li) => COURSE_LINE_ITEM_TYPES.has(li.lineItemType));
-    summary.lineItemsSkippedNonCourse += (order.lineItems?.length ?? 0) - courseTypeLineItems.length;
+  // Events are sold the same way as courses (SERVICE line items), so
+  // lineItemType alone can't tell them apart — they're identified by the
+  // events product tag (or the legacy name list) and routed to
+  // eventRegistrations instead of a student's courses. Throws if the API key
+  // lacks the Products permission: silently treating nothing as an event
+  // would record every new event as a course.
+  const eventClassifier = createEventClassifier();
+  await eventClassifier.prime(orders);
 
-    const courseLineItems = courseTypeLineItems.filter(
-      (li) => !EXCLUDED_EVENT_PRODUCT_NAMES.has(li.productName?.trim())
-    );
-    summary.lineItemsSkippedEvent += courseTypeLineItems.length - courseLineItems.length;
+  for (const order of orders) {
+    const courseLineItems: SquarespaceLineItem[] = [];
+
+    for (const lineItem of order.lineItems ?? []) {
+      const eventMatch = eventClassifier.match(lineItem);
+      if (eventMatch) {
+        try {
+          const registrationRef = db.collection(EVENT_REGISTRATIONS_COLLECTION).doc(lineItem.id);
+          if ((await registrationRef.get()).exists) {
+            summary.eventRegistrationsAlreadySynced++;
+          } else {
+            await registrationRef.set(buildEventRegistration(order, lineItem, eventMatch));
+            summary.eventRegistrationsSynced++;
+          }
+        } catch (error) {
+          console.error(`Failed to sync event registration ${lineItem.id} on order ${order.id}:`, error);
+          summary.errors++;
+        }
+      } else if (COURSE_LINE_ITEM_TYPES.has(lineItem.lineItemType)) {
+        courseLineItems.push(lineItem);
+      } else {
+        summary.lineItemsSkippedNonCourse++;
+      }
+    }
 
     if (courseLineItems.length === 0) {
       continue;
