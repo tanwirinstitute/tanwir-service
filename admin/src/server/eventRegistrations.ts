@@ -69,6 +69,21 @@ function findField(fields: SquarespaceFormSubmissionField[], pattern: RegExp): s
   return fields.find((f) => pattern.test(f.label ?? ""))?.value?.trim() || null;
 }
 
+const PHONE_LABEL_PATTERN = /phone|mobile|\bcell\b|contact number|whatsapp/i;
+
+/**
+ * Event forms word the phone question differently ("Phone" on Badr/Arafat;
+ * the Portrait form added one in Oct 2026), so match any phone-ish label —
+ * but only take an answer that actually looks like a number, so a yes/no
+ * question like "Can we text your phone?" isn't mistaken for it.
+ */
+function findPhone(fields: SquarespaceFormSubmissionField[]): string | null {
+  const field = fields.find(
+    (f) => PHONE_LABEL_PATTERN.test(f.label ?? "") && (f.value ?? "").replace(/\D/g, "").length >= 7
+  );
+  return field?.value.trim() || null;
+}
+
 /**
  * RSVP answers can sit on the line item (customizations — every event so
  * far) or the order (formSubmission — how the newer course checkouts work),
@@ -109,7 +124,7 @@ export function buildEventRegistration(
     registeredOn: order.createdOn,
     name: findField(fields, /^(full )?name$/i) || billingName || null,
     email: (findField(fields, /^e-?mail( address)?$/i) || order.customerEmail || "").trim(),
-    phone: findField(fields, /^phone( number)?$/i) || order.billingAddress?.phone?.trim() || null,
+    phone: findPhone(fields) || order.billingAddress?.phone?.trim() || null,
     attending: Number.isFinite(attendingParsed) && attendingParsed > 0 ? attendingParsed : lineItem.quantity,
     matchedBy,
     formResponses,
