@@ -9,6 +9,7 @@ interface CreateBody {
   label?: string;
   targetUrl?: string;
   slug?: string;
+  design?: unknown;
 }
 
 export async function GET() {
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest) {
       label: body.label,
       targetUrl: body.targetUrl,
       slug: typeof body.slug === "string" ? body.slug : undefined,
+      design: body.design,
       createdBy: { uid: session.uid, email: session.email, name: session.name },
     });
     return NextResponse.json({ success: true, link });

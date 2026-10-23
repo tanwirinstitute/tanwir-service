@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 interface UpdateBody {
   label?: string;
   targetUrl?: string;
+  design?: unknown;
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
@@ -28,6 +29,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const link = await updateQrLink(slug, {
       label: typeof body.label === "string" ? body.label : undefined,
       targetUrl: typeof body.targetUrl === "string" ? body.targetUrl : undefined,
+      design: body.design,
     });
     return NextResponse.json({ success: true, link });
   } catch (error) {

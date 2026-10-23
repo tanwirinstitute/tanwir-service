@@ -1733,9 +1733,32 @@ button {
   color: var(--brand-ink);
 }
 
+/* Sticky, but scrolls on its own once the design editor makes it taller
+   than the viewport. */
 .qr-create-panel {
   position: sticky;
   top: 1.25rem;
+  max-height: calc(100vh - 2.5rem);
+  overflow-y: auto;
+}
+
+@media (max-width: 860px) {
+  .qr-create-panel {
+    position: static;
+    max-height: none;
+  }
+}
+
+.qr-draft-preview {
+  width: 168px;
+  margin: 0 auto 1.1rem;
+}
+
+.qr-draft-preview svg,
+.qr-option-swatch svg {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .qr-input {
@@ -1794,7 +1817,6 @@ button {
 .qr-card-preview {
   flex-shrink: 0;
   width: 148px;
-  height: 148px;
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -1804,7 +1826,7 @@ button {
 .qr-card-preview svg {
   display: block;
   width: 100%;
-  height: 100%;
+  height: auto;
 }
 
 .qr-card-body {
@@ -1936,6 +1958,260 @@ button {
   margin-bottom: 0.75rem;
 }
 
+/* --- QR design editor --- */
+
+.qr-design {
+  margin-bottom: 1rem;
+}
+
+.qr-design-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.qr-link-btn {
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--brand-green);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.qr-link-btn:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.qr-design-section {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: #fff;
+  margin-bottom: 0.5rem;
+  transition: border-color var(--transition-fast);
+}
+
+.qr-design-section.open {
+  border-color: var(--gray-300);
+}
+
+.qr-design-head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.65rem 0.7rem;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.qr-design-head:hover {
+  background: var(--gray-100);
+}
+
+.qr-design-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: var(--radius-md);
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+
+.qr-design-icon .qr-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.qr-design-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.qr-design-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--brand-ink);
+}
+
+.qr-design-subtitle {
+  font-size: 0.75rem;
+  color: var(--gray-500);
+}
+
+.qr-design-chevron {
+  flex-shrink: 0;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--gray-500);
+  transition: transform var(--transition-fast);
+}
+
+.qr-design-section.open .qr-design-chevron {
+  transform: rotate(90deg);
+}
+
+.qr-design-body {
+  padding: 0.25rem 0.7rem 0.8rem;
+}
+
+.qr-sub-label {
+  display: block;
+  margin-bottom: 0.4rem;
+}
+
+.qr-option-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(62px, 1fr));
+  gap: 0.4rem;
+  margin-bottom: 0.8rem;
+}
+
+.qr-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.45rem 0.3rem 0.35rem;
+  font: inherit;
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.qr-option:hover:not(:disabled) {
+  border-color: var(--gray-300);
+}
+
+.qr-option.selected {
+  border-color: var(--brand-green);
+  box-shadow: 0 0 0 1px var(--brand-green);
+}
+
+.qr-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.qr-option-swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+}
+
+.qr-option-swatch-frame svg {
+  width: auto;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.qr-option-img {
+  object-fit: contain;
+}
+
+.qr-option-empty {
+  border: 1.5px dashed var(--gray-300);
+  border-radius: var(--radius-sm);
+  width: 26px;
+  height: 26px;
+}
+
+.qr-option-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--gray-600);
+}
+
+.qr-option.selected .qr-option-label {
+  color: var(--brand-green);
+}
+
+.qr-color-row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.qr-color-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.qr-color-input {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.qr-color-input input[type="color"] {
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0.15rem;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  background: #fff;
+  cursor: pointer;
+}
+
+.qr-hex-input {
+  width: 6.2rem;
+  padding: 0.45rem 0.6rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+}
+
+.qr-match-btn {
+  padding-bottom: 0.6rem;
+}
+
+.qr-logo-hint {
+  margin-top: 0.5rem;
+}
+
+.qr-design-warnings {
+  margin-top: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-md);
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  font-size: 0.78rem;
+}
+
+.qr-design-warnings p {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.qr-design-warnings p + p {
+  margin-top: 0.3rem;
+}
+
+.qr-card.editing .qr-card-preview {
+  position: sticky;
+  top: 1.25rem;
+}
+
 @media (max-width: 560px) {
   .qr-card {
     flex-direction: column;
@@ -1943,7 +2219,6 @@ button {
 
   .qr-card-preview {
     width: 180px;
-    height: 180px;
     align-self: center;
   }
 }

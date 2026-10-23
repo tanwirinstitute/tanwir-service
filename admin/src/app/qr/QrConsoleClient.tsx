@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import SignOutButton from "../SignOutButton";
 import { buildTanwirQrSvg, tanwirQrPng } from "./tanwirQr";
+import QrDesignEditor, { resolveQrLogo } from "./QrDesignEditor";
+import { DEFAULT_QR_DESIGN, type QrDesign } from "@/lib/qrDesign";
 import type { QrLinkRecord } from "@/server/qrLinks";
 
 /* --- Icons: hand-rolled inline SVGs (no icon-font/emoji, no extra dependency) --- */
@@ -124,10 +126,25 @@ function shortUrl(slug: string): string {
   return `${origin.replace(/\/$/, "")}/qr/${slug}`;
 }
 
+const noopSubscribe = () => () => {};
+
 /* --- QR preview + per-link card --- */
 
-function QrPreview({ url, logoDataUri, className }: { url: string; logoDataUri: string | null; className?: string }) {
-  const svg = useMemo(() => buildTanwirQrSvg(url, { logoDataUri }), [url, logoDataUri]);
+function QrPreview({
+  url,
+  design,
+  tanwirLogo,
+  className,
+}: {
+  url: string;
+  design: QrDesign;
+  tanwirLogo: string | null;
+  className?: string;
+}) {
+  const svg = useMemo(
+    () => buildTanwirQrSvg(url, { design, logoDataUri: resolveQrLogo(design, tanwirLogo) }),
+    [url, design, tanwirLogo]
+  );
   // Safe: markup is generated entirely by our own renderer from geometry —
   // no user-provided string ever lands in it verbatim.
   return <div className={className} dangerouslySetInnerHTML={{ __html: svg }} />;
@@ -135,18 +152,19 @@ function QrPreview({ url, logoDataUri, className }: { url: string; logoDataUri: 
 
 function QrLinkCard({
   link,
-  logoDataUri,
+  tanwirLogo,
   onUpdated,
   onDeleted,
 }: {
   link: QrLinkRecord;
-  logoDataUri: string | null;
+  tanwirLogo: string | null;
   onUpdated: (link: QrLinkRecord) => void;
   onDeleted: (slug: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(link.label);
   const [targetUrl, setTargetUrl] = useState(link.targetUrl);
+  const [design, setDesign] = useState<QrDesign>(link.design);
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -168,7 +186,7 @@ function QrLinkCard({
     async (format: "svg" | "png") => {
       setError(null);
       try {
-        const svg = buildTanwirQrSvg(url, { logoDataUri });
+        const svg = buildTanwirQrSvg(url, { design: link.design, logoDataUri: resolveQrLogo(link.design, tanwirLogo) });
         const blob =
           format === "svg" ? new Blob([svg], { type: "image/svg+xml" }) : await tanwirQrPng(svg);
         triggerDownload(blob, `tanwir-qr-${link.slug}.${format}`);
@@ -176,7 +194,7 @@ function QrLinkCard({
         setError((err as Error).message);
       }
     },
-    [url, logoDataUri, link.slug]
+    [url, link.design, tanwirLogo, link.slug]
   );
 
   async function saveEdits() {
@@ -186,7 +204,7 @@ function QrLinkCard({
       const body = await callApi(`/api/qr-codes/${encodeURIComponent(link.slug)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label, targetUrl }),
+        body: JSON.stringify({ label, targetUrl, design }),
       });
       if (body.link) onUpdated(body.link);
       setEditing(false);
@@ -211,8 +229,9 @@ function QrLinkCard({
   }
 
   return (
-    <article className="ec-panel qr-card">
-      <QrPreview url={url} logoDataUri={logoDataUri} className="qr-card-preview" />
+    <article className={`ec-panel qr-card${editing ? " editing" : ""}`}>
+      {/* While editing, preview the draft design so changes show live. */}
+      <QrPreview url={url} design={editing ? design : link.design} tanwirLogo={tanwirLogo} className="qr-card-preview" />
 
       <div className="qr-card-body">
         {editing ? (
@@ -232,7 +251,11 @@ function QrLinkCard({
                 placeholder="https://…"
               />
             </label>
-            <p className="ec-hint">The printed code keeps working — scans will follow the new destination.</p>
+            <p className="ec-hint qr-field-tight">The printed code keeps working — scans will follow the new destination.</p>
+            <QrDesignEditor design={design} onChange={setDesign} disabled={busy} />
+            {design !== link.design && (
+              <p className="ec-hint qr-field-tight">Design changes apply to new downloads — copies already printed keep their look.</p>
+            )}
             {error && <p className="ec-error">{error}</p>}
             <div className="qr-card-actions">
               <button type="button" className="ec-btn ec-btn-primary ec-btn-sm" onClick={saveEdits} disabled={busy}>
@@ -247,6 +270,7 @@ function QrLinkCard({
                   setEditing(false);
                   setLabel(link.label);
                   setTargetUrl(link.targetUrl);
+                  setDesign(link.design);
                   setError(null);
                 }}
               >
@@ -299,7 +323,14 @@ function QrLinkCard({
                 <button type="button" className="ec-btn ec-btn-sm" onClick={() => download("svg")}>
                   <IconDownload className="btn-icon" /> SVG
                 </button>
-                <button type="button" className="ec-btn ec-btn-sm" onClick={() => setEditing(true)}>
+                <button
+                  type="button"
+                  className="ec-btn ec-btn-sm"
+                  onClick={() => {
+                    setDesign(link.design);
+                    setEditing(true);
+                  }}
+                >
                   <IconPencil className="btn-icon" /> Edit
                 </button>
                 <button
@@ -325,11 +356,19 @@ function QrLinkCard({
 export default function QrConsoleClient() {
   const [links, setLinks] = useState<QrLinkRecord[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [logoDataUri, setLogoDataUri] = useState<string | null>(null);
+  const [tanwirLogo, setTanwirLogo] = useState<string | null>(null);
 
   const [label, setLabel] = useState("");
   const [targetUrl, setTargetUrl] = useState("");
   const [customSlug, setCustomSlug] = useState("");
+  const [design, setDesign] = useState<QrDesign>(DEFAULT_QR_DESIGN);
+  // shortUrl() reads window, so the draft preview only renders client-side
+  // (null during SSR); the origin never changes, hence the no-op subscribe.
+  const previewOrigin = useSyncExternalStore(
+    noopSubscribe,
+    () => shortUrl(""),
+    () => null
+  );
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -355,7 +394,7 @@ export default function QrConsoleClient() {
           })
       )
       .then((uri) => {
-        if (!cancelled) setLogoDataUri(uri);
+        if (!cancelled) setTanwirLogo(uri);
       })
       // Codes still render (and scan) without the center logo.
       .catch(() => {});
@@ -376,12 +415,14 @@ export default function QrConsoleClient() {
           label,
           targetUrl,
           slug: customSlug.trim() || undefined,
+          design,
         }),
       });
       if (body.link) setLinks((prev) => [body.link!, ...(prev ?? [])]);
       setLabel("");
       setTargetUrl("");
       setCustomSlug("");
+      // Design is kept on purpose: a batch of codes usually shares one look.
     } catch (err) {
       setCreateError((err as Error).message);
     } finally {
@@ -405,6 +446,15 @@ export default function QrConsoleClient() {
       <div className="qr-layout">
         <section className="ec-panel qr-create-panel">
           <h2 className="qr-panel-title">New QR code</h2>
+          {previewOrigin !== null && (
+            <QrPreview
+              // Same URL length as a real code, so the preview has the same density.
+              url={`${previewOrigin}${customSlug.trim() || "xxxxxxx"}`}
+              design={design}
+              tanwirLogo={tanwirLogo}
+              className="qr-draft-preview"
+            />
+          )}
           <form onSubmit={createLink}>
             <label className="ec-field">
               <span className="ec-label">Label</span>
@@ -444,6 +494,7 @@ export default function QrConsoleClient() {
             <p className="ec-hint">
               The code encodes a permanent tanwir link — change its destination any time without reprinting.
             </p>
+            <QrDesignEditor design={design} onChange={setDesign} disabled={creating} />
             {createError && <p className="ec-error">{createError}</p>}
             <button type="submit" className="ec-btn ec-btn-primary qr-create-btn" disabled={creating}>
               {creating && <IconLoader className="btn-icon spin" />}
@@ -474,7 +525,7 @@ export default function QrConsoleClient() {
               <QrLinkCard
                 key={link.slug}
                 link={link}
-                logoDataUri={logoDataUri}
+                tanwirLogo={tanwirLogo}
                 onUpdated={(updated) => setLinks((prev) => (prev ?? []).map((l) => (l.slug === updated.slug ? updated : l)))}
                 onDeleted={(slug) => setLinks((prev) => (prev ?? []).filter((l) => l.slug !== slug))}
               />

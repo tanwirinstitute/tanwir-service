@@ -1,5 +1,6 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { getDb } from "@/lib/firebase";
+import { normalizeQrDesign, QrDesignError, validateQrDesign, type QrDesign } from "@/lib/qrDesign";
 
 /**
  * Dynamic QR links. Each doc is a short slug that the public redirect route
@@ -34,6 +35,10 @@ export interface QrLinkRecord {
   label: string;
   /** Where a scan currently redirects. The one field meant to change. */
   targetUrl: string;
+  /** How the code is drawn (frame, pattern, corners, logo). Purely visual:
+   * changing it never changes what the code encodes, but already-printed
+   * copies keep their old look. */
+  design: QrDesign;
   scanCount: number;
   lastScannedAt: string | null;
   createdAt: string | null;
@@ -86,6 +91,15 @@ export function normalizeSlug(raw: unknown): string {
   return slug;
 }
 
+function parseDesign(raw: unknown): QrDesign {
+  try {
+    return validateQrDesign(raw);
+  } catch (error) {
+    if (error instanceof QrDesignError) throw new QrLinkError(error.message, 400);
+    throw error;
+  }
+}
+
 function generateSlug(): string {
   const bytes = new Uint8Array(GENERATED_SLUG_LENGTH);
   crypto.getRandomValues(bytes);
@@ -97,6 +111,8 @@ function mapRecord(slug: string, data: FirebaseFirestore.DocumentData): QrLinkRe
     slug,
     label: typeof data.label === "string" ? data.label : "",
     targetUrl: typeof data.targetUrl === "string" ? data.targetUrl : "",
+    // Docs from before designs existed have none and render as the default.
+    design: normalizeQrDesign(data.design),
     scanCount: typeof data.scanCount === "number" ? data.scanCount : 0,
     lastScannedAt: toIso(data.lastScannedAt),
     createdAt: toIso(data.createdAt),
@@ -121,6 +137,8 @@ export interface CreateQrLinkInput {
   targetUrl: string;
   /** Optional custom slug; auto-generated when omitted. */
   slug?: string;
+  /** Omitted → the default Tanwir design. */
+  design?: unknown;
   createdBy: QrLinkActor;
 }
 
@@ -128,6 +146,7 @@ export async function createQrLink(input: CreateQrLinkInput): Promise<QrLinkReco
   const targetUrl = normalizeTargetUrl(input.targetUrl);
   const label = input.label.trim();
   if (!label) throw new QrLinkError("A label is required", 400);
+  const design = parseDesign(input.design);
 
   const db = getDb();
   const wantsCustomSlug = typeof input.slug === "string" && input.slug.trim() !== "";
@@ -141,6 +160,7 @@ export async function createQrLink(input: CreateQrLinkInput): Promise<QrLinkReco
     await ref.create({
       label,
       targetUrl,
+      design,
       scanCount: 0,
       lastScannedAt: null,
       createdAt: FieldValue.serverTimestamp(),
@@ -161,9 +181,10 @@ export async function createQrLink(input: CreateQrLinkInput): Promise<QrLinkReco
 export interface UpdateQrLinkInput {
   label?: string;
   targetUrl?: string;
+  design?: unknown;
 }
 
-/** Updates label and/or destination. The slug never changes — that's the
+/** Updates label, destination and/or design. The slug never changes — that's the
  * whole point of a dynamic QR code. */
 export async function updateQrLink(slug: string, input: UpdateQrLinkInput): Promise<QrLinkRecord> {
   const updates: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
@@ -174,7 +195,8 @@ export async function updateQrLink(slug: string, input: UpdateQrLinkInput): Prom
     if (!label) throw new QrLinkError("A label is required", 400);
     updates.label = label;
   }
-  if (input.targetUrl === undefined && input.label === undefined) {
+  if (input.design !== undefined) updates.design = parseDesign(input.design);
+  if (input.targetUrl === undefined && input.label === undefined && input.design === undefined) {
     throw new QrLinkError("Nothing to update", 400);
   }
 
