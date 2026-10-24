@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { verifySession } from "@/lib/session";
-import { getCourseCatalog, getSectionCatalog } from "@/server/recipients";
+import { getCourseCatalog, getEventCatalog, getSectionCatalog } from "@/server/recipients";
 import EmailConsoleClient from "./EmailConsoleClient";
 
 // Reads the session cookie, so it can never be statically cached.
@@ -18,7 +18,7 @@ export default async function EmailConsolePage() {
     redirect("/login?next=/email");
   }
 
-  const [courses, sections] = await Promise.all([getCourseCatalog(), getSectionCatalog()]);
+  const [courses, sections, events] = await Promise.all([getCourseCatalog(), getSectionCatalog(), getEventCatalog()]);
 
-  return <EmailConsoleClient adminEmail={session.email} courses={courses} sections={sections} />;
+  return <EmailConsoleClient adminEmail={session.email} courses={courses} sections={sections} events={events} />;
 }

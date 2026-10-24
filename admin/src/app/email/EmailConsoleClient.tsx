@@ -6,7 +6,7 @@ import Link from "next/link";
 import SignOutButton from "../SignOutButton";
 import RichTextEditor from "./RichTextEditor";
 import SendHistory from "./SendHistory";
-import type { CourseCatalogEntry, SectionCatalogEntry } from "@/server/recipients";
+import type { CourseCatalogEntry, EventCatalogEntry, SectionCatalogEntry } from "@/server/recipients";
 
 interface Recipient {
   email: string;
@@ -28,7 +28,7 @@ interface RecipientResult {
   error?: string;
 }
 
-type AudienceType = "all" | "course";
+type AudienceType = "all" | "course" | "event";
 type SendPhase = "idle" | "confirming" | "sending" | "done";
 type TestStatus = "idle" | "sending" | "sent" | "error";
 
@@ -44,6 +44,7 @@ interface Audience {
   productNames?: string[];
   academicYear?: string;
   semester?: string;
+  productId?: string;
 }
 
 const BATCH_SIZE = 25;
@@ -83,9 +84,10 @@ interface Props {
   adminEmail: string | null;
   courses: CourseCatalogEntry[];
   sections: SectionCatalogEntry[];
+  events: EventCatalogEntry[];
 }
 
-export default function EmailConsoleClient({ adminEmail, courses, sections }: Props) {
+export default function EmailConsoleClient({ adminEmail, courses, sections, events }: Props) {
   const [view, setView] = useState<ConsoleView>("compose");
   // Bumped after every recorded send so the History view refetches.
   const [historyKey, setHistoryKey] = useState(0);
@@ -93,6 +95,7 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
   const [audienceType, setAudienceType] = useState<AudienceType>("all");
   const [courseId, setCourseId] = useState("");
   const [sectionKey, setSectionKey] = useState("");
+  const [eventId, setEventId] = useState("");
 
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
@@ -109,7 +112,8 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
-  const hasAudienceSelection = audienceType === "all" || Boolean(courseId) || Boolean(sectionKey);
+  const hasAudienceSelection =
+    audienceType === "all" || (audienceType === "event" ? Boolean(eventId) : Boolean(courseId) || Boolean(sectionKey));
 
   const courseGroups = useMemo(() => groupByAcademicYear(courses), [courses]);
   const sectionGroups = useMemo(() => groupByAcademicYear(sections), [sections]);
@@ -122,21 +126,26 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
   // other — see the onChange handlers below.
   const buildAudience = useCallback((): Audience => {
     if (audienceType === "all") return { type: "all" };
+    if (audienceType === "event") return { type: "event", productId: eventId };
     if (courseId) {
       const course = courses.find((c) => c.key === courseId);
       return { type: "course", productNames: course?.productNames, academicYear: course?.academicYear };
     }
     const [academicYear, semester] = sectionKey ? sectionKey.split("__") : [undefined, undefined];
     return { type: "course", academicYear, semester };
-  }, [audienceType, courseId, courses, sectionKey]);
+  }, [audienceType, courseId, courses, sectionKey, eventId]);
 
   const audienceLabel = useMemo(() => {
     if (audienceType === "all") return "All students";
+    if (audienceType === "event") {
+      const event = events.find((e) => e.productId === eventId);
+      return event ? `${event.productName} registrants` : "(choose an event)";
+    }
     const course = courses.find((c) => c.key === courseId);
     if (course) return `${courseOptionLabel(course)} — ${course.academicYear}`;
     const [academicYear, semester] = sectionKey ? sectionKey.split("__") : [undefined, undefined];
     return academicYear && semester ? `${semester} ${academicYear}` : "(choose a course or term)";
-  }, [audienceType, courseId, courses, sectionKey]);
+  }, [audienceType, courseId, courses, sectionKey, eventId, events]);
 
   const canCompose = subject.trim().length > 0 && bodyHtml.trim().length > 0;
 
@@ -206,7 +215,7 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
   const startBlast = useCallback(() => {
     setError(null);
     if (!previewRecipients || previewRecipients.length === 0) {
-      setError("No students match this audience — nothing to send.");
+      setError("No recipients match this audience — nothing to send.");
       return;
     }
     setSendPhase("confirming");
@@ -377,8 +386,32 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
                 >
                   Course / term
                 </button>
+                <button
+                  type="button"
+                  className={audienceType === "event" ? "segmented-btn active" : "segmented-btn"}
+                  onClick={() => setAudienceType("event")}
+                >
+                  Event
+                </button>
               </div>
             </div>
+
+            {audienceType === "event" && (
+              <div className="ec-field">
+                <label className="ec-label" htmlFor="ec-event">
+                  Event
+                </label>
+                <select id="ec-event" value={eventId} onChange={(e) => setEventId(e.target.value)}>
+                  <option value="">Choose an event…</option>
+                  {events.map((ev) => (
+                    <option key={ev.productId} value={ev.productId}>
+                      {ev.productName} ({ev.registrations} registrations)
+                    </option>
+                  ))}
+                </select>
+                <p className="ec-hint">Emails everyone who registered, once per email address.</p>
+              </div>
+            )}
 
             {audienceType === "course" && (
               <>
@@ -481,7 +514,7 @@ export default function EmailConsoleClient({ adminEmail, courses, sections }: Pr
           <div className="ec-side">
             <div className="ec-panel ec-recipients">
               <p className="ec-label">Recipients</p>
-              {!hasAudienceSelection && <p className="ec-hint">Choose a course or term to see who this would reach.</p>}
+              {!hasAudienceSelection && <p className="ec-hint">Choose an audience to see who this would reach.</p>}
               {hasAudienceSelection && previewLoading && <p className="ec-hint">Resolving recipients…</p>}
               {hasAudienceSelection && previewError && <p className="ec-error">{previewError}</p>}
               {hasAudienceSelection && !previewLoading && !previewError && previewRecipients && (

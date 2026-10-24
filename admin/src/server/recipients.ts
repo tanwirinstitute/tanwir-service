@@ -1,6 +1,8 @@
 import { getDb } from "@/lib/firebase";
 import { normalizeCourseName, programForCourse } from "@/lib/coursePrograms";
 import type { StudentRecord } from "@/types/student";
+import type { EventRegistrationRecord } from "@/types/event";
+import { EVENT_REGISTRATIONS_COLLECTION } from "./eventRegistrations";
 
 // Same collection this app's course sync writes to (courseSync.ts).
 const STUDENTS_COLLECTION = process.env.STUDENTS_COLLECTION || "students";
@@ -32,9 +34,23 @@ export interface CourseCatalogEntry {
   productNames: string[];
 }
 
+export interface EventCatalogEntry {
+  /**
+   * Keyed by productId, not name: recurring events like "Annual Arafat
+   * Program" are recreated as a new Squarespace product each year, so the
+   * productId is what tells this year's registrants from last year's.
+   */
+  productId: string;
+  productName: string;
+  registrations: number;
+  /** Most recent registeredOn — newest events sort first. */
+  lastRegisteredOn: string;
+}
+
 export type Audience =
   | { type: "all" }
-  | { type: "course"; productNames?: string[]; academicYear?: string; semester?: string };
+  | { type: "course"; productNames?: string[]; academicYear?: string; semester?: string }
+  | { type: "event"; productId: string };
 
 function studentName(data: Partial<StudentRecord>): string | null {
   const first = data.firstName?.trim();
@@ -141,6 +157,33 @@ export async function getSectionCatalog(): Promise<SectionCatalogEntry[]> {
   return sections.sort((a, b) => b.academicYear.localeCompare(a.academicYear) || a.semester.localeCompare(b.semester));
 }
 
+/** Every event with at least one registration, newest first. */
+export async function getEventCatalog(): Promise<EventCatalogEntry[]> {
+  const db = getDb();
+  const snapshot = await db.collection(EVENT_REGISTRATIONS_COLLECTION).select("productId", "productName", "registeredOn").get();
+
+  const byProduct = new Map<string, EventCatalogEntry>();
+  for (const doc of snapshot.docs) {
+    const data = doc.data() as Partial<EventRegistrationRecord>;
+    if (!data.productId) continue;
+    const registeredOn = data.registeredOn ?? "";
+    const entry = byProduct.get(data.productId);
+    if (entry) {
+      entry.registrations += 1;
+      if (registeredOn > entry.lastRegisteredOn) entry.lastRegisteredOn = registeredOn;
+    } else {
+      byProduct.set(data.productId, {
+        productId: data.productId,
+        productName: data.productName?.trim() || data.productId,
+        registrations: 1,
+        lastRegisteredOn: registeredOn,
+      });
+    }
+  }
+
+  return Array.from(byProduct.values()).sort((a, b) => b.lastRegisteredOn.localeCompare(a.lastRegisteredOn));
+}
+
 async function studentRefsToRecipients(studentRefs: FirebaseFirestore.DocumentReference[]): Promise<Recipient[]> {
   if (studentRefs.length === 0) return [];
   const db = getDb();
@@ -179,6 +222,22 @@ export async function resolveRecipients(audience: Audience): Promise<Recipient[]
       const data = doc.data() as StudentRecord;
       return { email: data.email || doc.id, name: studentName(data) };
     });
+  }
+
+  if (audience.type === "event") {
+    // Event registrants never become students (courseSync routes event line
+    // items to eventRegistrations instead), so this reads that collection
+    // directly. One person can register more than once, so dedupe by email.
+    const snapshot = await db.collection(EVENT_REGISTRATIONS_COLLECTION).where("productId", "==", audience.productId).get();
+    const byEmail = new Map<string, Recipient>();
+    for (const doc of snapshot.docs) {
+      const data = doc.data() as EventRegistrationRecord;
+      const email = data.email?.trim();
+      if (!email) continue;
+      const key = email.toLowerCase();
+      if (!byEmail.has(key)) byEmail.set(key, { email, name: data.name?.trim() || null });
+    }
+    return Array.from(byEmail.values());
   }
 
   const snapshot = await db.collectionGroup("courses").get();

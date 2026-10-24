@@ -22,7 +22,13 @@ export async function POST(request: NextRequest) {
   const audience = body.audience;
   const hasCourseFilter =
     audience?.type === "course" && Boolean((audience.productNames && audience.productNames.length > 0) || audience.academicYear || audience.semester);
-  if (!audience || (audience.type !== "all" && audience.type !== "course") || (audience.type === "course" && !hasCourseFilter)) {
+  const hasEventFilter = audience?.type === "event" && typeof audience.productId === "string" && audience.productId.length > 0;
+  if (
+    !audience ||
+    (audience.type !== "all" && audience.type !== "course" && audience.type !== "event") ||
+    (audience.type === "course" && !hasCourseFilter) ||
+    (audience.type === "event" && !hasEventFilter)
+  ) {
     return NextResponse.json({ success: false, message: "Invalid audience" }, { status: 400 });
   }
 
