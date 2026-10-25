@@ -5,7 +5,7 @@ export default function Page() {
       <p>
         This is the gateway app for tanwir.institute. It routes subdomains to
         their own apps — try email.tanwir.institute, admin.tanwir.institute,
-        tlp.tanwir.institute, or api.tanwir.institute.
+        or api.tanwir.institute.
       </p>
     </main>
   );

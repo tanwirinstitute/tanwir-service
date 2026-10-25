@@ -27,5 +27,5 @@ next-env.d.ts
 .netlify
 
 # Raw contact/donor data dumps (PII) handed off for one-off imports —
-# never committed, only ever read locally by admin/import_*.mjs scripts.
+# never committed, only ever read locally by one-off import scripts.
 /*.csv

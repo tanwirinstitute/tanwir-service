@@ -11,7 +11,6 @@ import { NextRequest, NextResponse } from "next/server";
 const ZONE_ORIGINS: Record<string, string | undefined> = {
   email: process.env.EMAIL_ORIGIN,
   admin: process.env.ADMIN_ORIGIN,
-  tlp: process.env.TLP_ORIGIN,
   api: process.env.API_ORIGIN,
 };
 

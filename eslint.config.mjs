@@ -15,7 +15,7 @@ const eslintConfig = defineConfig([
     // Sibling apps: each has its own lint config and build output.
     "emailer/**",
     "admin/**",
-    "tlp/**",
+    "api/**",
   ]),
 ]);
 
