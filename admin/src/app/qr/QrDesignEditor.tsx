@@ -65,6 +65,17 @@ function IconImage({ className }: IconProps) {
   );
 }
 
+function IconBackground({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3.5" y="3.5" width="17" height="17" rx="2.5" />
+      <path d="M3.5 12h8.5V3.5" />
+      <path d="M12 12h8.5" />
+      <path d="M12 12v8.5" />
+    </svg>
+  );
+}
+
 function IconChevron({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -243,7 +254,7 @@ function ColorField({
   );
 }
 
-type SectionId = "frame" | "pattern" | "corners" | "logo";
+type SectionId = "frame" | "pattern" | "background" | "corners" | "logo";
 
 function Section({
   id,
@@ -417,8 +428,44 @@ export default function QrDesignEditor({
         </div>
         <div className="qr-color-row">
           <ColorField label="Pattern" value={design.foreground} disabled={disabled} onChange={(v) => set("foreground", v)} />
-          <ColorField label="Background" value={design.background} disabled={disabled} onChange={(v) => set("background", v)} />
         </div>
+      </Section>
+
+      <Section
+        id="background"
+        open={openSection === "background"}
+        onToggle={toggle}
+        icon={<IconBackground className="qr-icon" />}
+        title="Background"
+        subtitle="Pick a background color, or remove it for a transparent PNG."
+      >
+        <div className="qr-option-grid">
+          <OptionTile
+            label="Color"
+            selected={!design.transparentBackground}
+            disabled={disabled}
+            onSelect={() => set("transparentBackground", false)}
+          >
+            <span className="qr-option-swatch qr-option-fill" style={{ background: design.background }} />
+          </OptionTile>
+          <OptionTile
+            label="Transparent"
+            selected={design.transparentBackground}
+            disabled={disabled}
+            onSelect={() => set("transparentBackground", true)}
+          >
+            <span className="qr-option-swatch qr-option-fill qr-checker" />
+          </OptionTile>
+        </div>
+        {design.transparentBackground ? (
+          <p className="ec-hint">
+            Downloads have no background. Place the code on a light, plain surface so it still scans.
+          </p>
+        ) : (
+          <div className="qr-color-row">
+            <ColorField label="Background" value={design.background} disabled={disabled} onChange={(v) => set("background", v)} />
+          </div>
+        )}
       </Section>
 
       <Section

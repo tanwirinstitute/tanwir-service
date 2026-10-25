@@ -185,15 +185,19 @@ function symbolSvg(content: string, design: QrDesign, logoDataUri: string | null
     }
   }
 
+  const badgePad = 0.5;
+  const badgeSize = windowEnd - windowStart - badgePad * 2;
   let logo = "";
   if (hasLogo) {
-    const windowSize = windowEnd - windowStart;
-    const badgePad = 0.5;
-    const badgeSize = windowSize - badgePad * 2;
+    // Transparent designs drop the badge too; the knockout alone keeps the
+    // logo clear of modules.
+    const badge = design.transparentBackground
+      ? ""
+      : `<rect x="${windowStart + badgePad}" y="${windowStart + badgePad}" width="${badgeSize}" height="${badgeSize}" rx="${badgeSize * 0.22}" fill="${design.background}"/>`;
     // Fit the artwork (any aspect ratio) inside the badge with breathing room.
     const logoSize = badgeSize * 0.82;
     logo =
-      `<rect x="${windowStart + badgePad}" y="${windowStart + badgePad}" width="${badgeSize}" height="${badgeSize}" rx="${badgeSize * 0.22}" fill="${design.background}"/>` +
+      badge +
       `<image href="${logoDataUri}" x="${size / 2 - logoSize / 2}" y="${size / 2 - logoSize / 2}" width="${logoSize}" height="${logoSize}" preserveAspectRatio="xMidYMid meet"/>`;
   }
 
@@ -219,6 +223,10 @@ export function buildTanwirQrSvg(content: string, options: TanwirQrOptions = {})
   const logoDataUri = isImageDataUri(options.logoDataUri) ? options.logoDataUri : null;
   const { markup: symbol, total: q } = symbolSvg(content, design, logoDataUri);
   const symbolRadius = q * 0.04;
+  const transparent = design.transparentBackground;
+  /** Background tile behind the symbol, or nothing when transparent. */
+  const backgroundRect = (x: number, y: number, rx: number) =>
+    transparent ? "" : `<rect x="${x}" y="${y}" width="${q}" height="${q}" rx="${rx}" fill="${design.background}"/>`;
 
   let width = q;
   let height = q;
@@ -236,9 +244,16 @@ export function buildTanwirQrSvg(content: string, options: TanwirQrOptions = {})
       height = q + pad + band;
       const symbolY = top ? band : pad;
       const textY = top ? band / 2 + pad / 4 : pad + q + (band - pad / 2) / 2;
+      const cardRadius = q * 0.07;
+      const card = roundedRectPath(0, 0, width, height, [cardRadius, cardRadius, cardRadius, cardRadius]);
+      // Transparent: punch the symbol's tile out of the card rather than
+      // letting the frame color show through behind the modules.
+      const hole = transparent
+        ? roundedRectPath(pad, symbolY, q, q, [symbolRadius, symbolRadius, symbolRadius, symbolRadius])
+        : "";
       body =
-        `<rect width="${width}" height="${height}" rx="${q * 0.07}" fill="${design.frameColor}"/>` +
-        `<rect x="${pad}" y="${symbolY}" width="${q}" height="${q}" rx="${symbolRadius}" fill="${design.background}"/>` +
+        `<path fill-rule="evenodd" fill="${design.frameColor}" d="${card}${hole}"/>` +
+        backgroundRect(pad, symbolY, symbolRadius) +
         `<g transform="translate(${pad} ${symbolY})">${symbol}</g>` +
         textSvg(design.frameText, width / 2, textY, band * 0.5, width * 0.86, design.frameTextColor);
       break;
@@ -250,7 +265,7 @@ export function buildTanwirQrSvg(content: string, options: TanwirQrOptions = {})
       const pillWidth = q * 0.84;
       height = q + gap + pillHeight;
       body =
-        `<rect width="${q}" height="${q}" rx="${symbolRadius}" fill="${design.background}"/>` +
+        backgroundRect(0, 0, symbolRadius) +
         symbol +
         `<rect x="${(q - pillWidth) / 2}" y="${q + gap}" width="${pillWidth}" height="${pillHeight}" rx="${pillHeight / 2}" fill="${design.frameColor}"/>` +
         textSvg(design.frameText, q / 2, q + gap + pillHeight / 2, pillHeight * 0.52, pillWidth * 0.84, design.frameTextColor);
@@ -264,14 +279,14 @@ export function buildTanwirQrSvg(content: string, options: TanwirQrOptions = {})
       width = q + pad * 2;
       height = q + pad + band;
       body =
-        `<rect x="${stroke / 2}" y="${stroke / 2}" width="${width - stroke}" height="${height - stroke}" rx="${q * 0.07}" fill="${design.background}" stroke="${design.frameColor}" stroke-width="${stroke}"/>` +
+        `<rect x="${stroke / 2}" y="${stroke / 2}" width="${width - stroke}" height="${height - stroke}" rx="${q * 0.07}" fill="${transparent ? "none" : design.background}" stroke="${design.frameColor}" stroke-width="${stroke}"/>` +
         `<g transform="translate(${pad} ${pad})">${symbol}</g>` +
         textSvg(design.frameText, width / 2, pad + q + (band - pad) / 2, band * 0.5, width * 0.84, design.frameColor);
       break;
     }
     case "none":
     default:
-      body = `<rect width="${q}" height="${q}" fill="${design.background}"/>` + symbol;
+      body = backgroundRect(0, 0, 0) + symbol;
   }
 
   return (

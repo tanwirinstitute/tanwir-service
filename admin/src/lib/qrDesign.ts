@@ -31,8 +31,11 @@ export interface QrDesign {
   patternStyle: QrPatternStyle;
   /** Module (data dot) color. */
   foreground: string;
-  /** Quiet zone + logo badge color. */
+  /** Quiet zone + logo badge color; unused when transparentBackground. */
   background: string;
+  /** Leave the background unpainted (transparent PNG / SVG) so the code can
+   * sit on artwork. Frames keep their own color. */
+  transparentBackground: boolean;
   cornerFrameStyle: QrCornerFrameStyle;
   cornerDotStyle: QrCornerDotStyle;
   cornerColor: string;
@@ -58,6 +61,7 @@ export const DEFAULT_QR_DESIGN: QrDesign = {
   patternStyle: "dots",
   foreground: BRAND_GREEN,
   background: "#ffffff",
+  transparentBackground: false,
   cornerFrameStyle: "rounded",
   cornerDotStyle: "rounded",
   cornerColor: BRAND_GREEN,
@@ -126,6 +130,11 @@ function coerceQrDesign(raw: unknown, strict: boolean): QrDesign {
     patternStyle: pick("patternStyle", oneOf(PATTERN_STYLES), "pattern style"),
     foreground: pick("foreground", isHexColor, "pattern color"),
     background: pick("background", isHexColor, "background color"),
+    transparentBackground: pick(
+      "transparentBackground",
+      (value): value is boolean => typeof value === "boolean",
+      "transparent background setting"
+    ),
     cornerFrameStyle: pick("cornerFrameStyle", oneOf(CORNER_FRAME_STYLES), "corner frame style"),
     cornerDotStyle: pick("cornerDotStyle", oneOf(CORNER_DOT_STYLES), "corner dot style"),
     cornerColor: pick("cornerColor", isHexColor, "corner color"),
@@ -165,14 +174,17 @@ function contrastRatio(a: string, b: string): number {
  */
 export function qrDesignWarnings(design: QrDesign): string[] {
   const warnings: string[] = [];
-  const bgLum = relativeLuminance(design.background);
+  // A transparent code is only scannable on a light surface, so judge it
+  // against white — the editor tells the admin to place it accordingly.
+  const background = design.transparentBackground ? "#ffffff" : design.background;
+  const bgLum = relativeLuminance(background);
   for (const [name, color] of [
     ["Pattern", design.foreground],
     ["Corner", design.cornerColor],
   ] as const) {
     if (relativeLuminance(color) > bgLum) {
       warnings.push(`${name} color is lighter than the background — many scanners can't read inverted codes.`);
-    } else if (contrastRatio(color, design.background) < 4) {
+    } else if (contrastRatio(color, background) < 4) {
       warnings.push(`${name} color has low contrast against the background, which can make the code hard to scan.`);
     }
   }

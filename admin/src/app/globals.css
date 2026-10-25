@@ -1754,6 +1754,16 @@ button {
   margin: 0 auto 1.1rem;
 }
 
+/* Checkerboard behind previews, so transparent areas (transparent designs,
+   rounded frame corners) look the way they'll export. */
+.qr-checker,
+.qr-draft-preview,
+.qr-card-preview {
+  background-color: #fff;
+  background-image: conic-gradient(var(--gray-100) 25%, transparent 0 50%, var(--gray-100) 0 75%, transparent 0);
+  background-size: 12px 12px;
+}
+
 .qr-draft-preview svg,
 .qr-option-swatch svg {
   display: block;
@@ -1820,7 +1830,6 @@ button {
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   overflow: hidden;
-  background: #fff;
 }
 
 .qr-card-preview svg {
@@ -2121,6 +2130,13 @@ button {
   width: auto;
   max-width: 100%;
   max-height: 100%;
+}
+
+.qr-option-fill {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
 }
 
 .qr-option-img {
