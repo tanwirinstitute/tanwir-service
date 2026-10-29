@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
@@ -18,6 +18,24 @@ function LoginForm() {
   const next = safeNext(useSearchParams().get("next"));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+
+  // Initialize auth on mount, not on click. On mobile, Firebase loads its
+  // auth iframe during initialization; if that happens inside the click
+  // handler, the network wait lands between the tap and window.open and the
+  // browser blocks the popup (the "works on the second tap" bug).
+  useEffect(() => {
+    let cancelled = false;
+    getClientAuth()
+      .authStateReady()
+      .catch(() => {})
+      .then(() => {
+        if (!cancelled) setAuthReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function signIn() {
     setBusy(true);
@@ -59,6 +77,10 @@ function LoginForm() {
         // User dismissed the popup — not an error worth showing.
         return;
       }
+      if (code === "auth/popup-blocked") {
+        setError("Your browser blocked the sign-in window. Allow popups for this site and try again.");
+        return;
+      }
       setError((err as Error).message);
     } finally {
       setBusy(false);
@@ -72,7 +94,7 @@ function LoginForm() {
         <h1>Tanwir Admin</h1>
         <p>Sign in with your authorized Google account.</p>
 
-        <button type="button" className="login-btn" onClick={signIn} disabled={busy}>
+        <button type="button" className="login-btn" onClick={signIn} disabled={busy || !authReady}>
           {busy ? "Signing in…" : "Sign in with Google"}
         </button>
 

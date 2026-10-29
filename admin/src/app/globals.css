@@ -1245,7 +1245,9 @@ button {
 
 @media (max-width: 860px) {
   .ec-layout {
-    grid-template-columns: 1fr;
+    /* minmax(0, …) so long recipient rows or option labels can't widen the
+       column past the screen (plain 1fr won't shrink below its content). */
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1273,6 +1275,8 @@ button {
 }
 
 .ec-field select {
+  width: 100%;
+  min-width: 0;
   font: inherit;
   font-size: 0.9rem;
   padding: 0.6rem 0.8rem;
@@ -1291,6 +1295,14 @@ button {
 .ec-subject-input {
   width: 100%;
   padding-left: 0.8rem;
+}
+
+/* iOS Safari zooms the page when focusing a control under 16px. */
+@media (max-width: 860px) {
+  .ec-field select,
+  .ec-subject-input {
+    font-size: 16px;
+  }
 }
 
 .ec-hint {
@@ -1412,12 +1424,17 @@ button {
 }
 
 .ec-recipient-name {
+  flex-shrink: 0;
+  max-width: 50%;
   font-weight: 600;
   color: var(--brand-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .ec-recipient-email {
+  min-width: 0;
   color: var(--gray-500);
   overflow: hidden;
   text-overflow: ellipsis;
