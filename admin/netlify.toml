@@ -1,6 +1,11 @@
+# Netlify site settings for this app: Base directory = repo root (so npm
+# installs the whole workspace), Package directory = admin. Paths below are
+# relative to the repo root.
 [build]
-  command = "npm run build"
-  publish = ".next"
+  command = "npm run build -w admin"
+  publish = "admin/.next"
+  # Skip the deploy unless this app, shared code, or dependencies changed.
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- admin packages package.json package-lock.json"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

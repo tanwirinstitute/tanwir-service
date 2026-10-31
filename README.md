@@ -15,14 +15,15 @@ The gateway has no pages of its own for the subdomains — `src/proxy.ts` reads 
 
 ## Local development
 
-Each app has its own `package.json` and runs on its own port. Copy `.env.example` to `.env` in the root, then start each app you need in a separate terminal:
+npm workspaces: one `npm install` at the root installs every app plus `packages/shared` (code the apps share: bearer-token auth and the OpenTelemetry exporter wiring). Copy `.env.example` to `.env` in the root, then:
 
 ```bash
-npm install && npm run dev          # gateway, :3000
-(cd emailer && npm install && npm run dev)  # :3002
-(cd admin && npm install && npm run dev)    # :3003
-(cd api && npm install && npm run dev)      # :3005
+npm install
+npm run dev:all          # gateway :3000, emailer :3002, admin :3003, api :3005
+npm run dev -w admin     # or just one app
 ```
+
+Add a dependency to one app with `npm install <pkg> -w admin`.
 
 To test subdomain routing locally, add entries to `/etc/hosts` (e.g. `127.0.0.1 email.localhost`) and hit the gateway with that host, or set the relevant `*_ORIGIN` env var and send a request with a matching `Host` header.
 

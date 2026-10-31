@@ -1,5 +1,5 @@
-import { timingSafeEqual } from "crypto";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { requireBearerToken } from "@tanwir/shared/auth";
 
 /**
  * Every endpoint is gated by the same shared secret as admin's
@@ -8,22 +8,6 @@ import { NextRequest, NextResponse } from "next/server";
  * SYNC_API_TOKEN in admin/.env. Callers authenticate with an
  * `Authorization: Bearer <token>` header.
  */
-export function requireAuth(request: NextRequest): NextResponse | null {
-  const expected = process.env.SYNC_API_TOKEN;
-  const header = request.headers.get("authorization") || "";
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  const provided = match ? match[1] : null;
-
-  if (!expected || !provided) {
-    return NextResponse.json({ success: false, message: "unauthorized" }, { status: 401 });
-  }
-
-  const providedBuf = Buffer.from(provided);
-  const expectedBuf = Buffer.from(expected);
-
-  if (providedBuf.length !== expectedBuf.length || !timingSafeEqual(providedBuf, expectedBuf)) {
-    return NextResponse.json({ success: false, message: "unauthorized" }, { status: 401 });
-  }
-
-  return null;
+export function requireAuth(request: NextRequest) {
+  return requireBearerToken(request, process.env.SYNC_API_TOKEN);
 }

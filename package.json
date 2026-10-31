@@ -3,12 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "description": "Subdomain routing gateway for tanwir.institute — proxies each subdomain to its own app.",
+  "workspaces": ["packages/*", "admin", "api", "emailer"],
   "scripts": {
     "dev": "next dev --port 3000",
-    "dev:all": "concurrently -n gateway,emailer,admin,api -c blue,yellow,magenta,red \"next dev --port 3000\" \"npm run dev --prefix emailer\" \"npm run dev --prefix admin\" \"npm run dev --prefix api\"",
+    "dev:all": "concurrently -n gateway,emailer,admin,api -c blue,yellow,magenta,red \"next dev --port 3000\" \"npm run dev -w emailer\" \"npm run dev -w admin\" \"npm run dev -w api\"",
     "build": "next build",
     "start": "next start --port 3000",
-    "lint": "eslint"
+    "lint": "eslint",
+    "build:all": "npm run build --workspaces --if-present"
   },
   "dependencies": {
     "next": "16.4.3",
@@ -23,5 +25,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "typescript": "^5"
+  },
+  "overrides": {
+    "jose": "^5.10.0"
   }
 }

@@ -1,0 +1,19 @@
+{
+  "name": "@tanwir/shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Code shared by the admin, api and emailer apps. Shipped as TypeScript source; Turbopack transpiles workspace packages automatically.",
+  "exports": {
+    "./auth": "./src/auth.ts",
+    "./otel": "./src/otel.ts"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "1.9.1",
+    "@opentelemetry/exporter-metrics-otlp-http": "0.222.0",
+    "@opentelemetry/sdk-metrics": "2.11.0",
+    "@vercel/otel": "2.1.3"
+  },
+  "peerDependencies": {
+    "next": "16.4.3"
+  }
+}

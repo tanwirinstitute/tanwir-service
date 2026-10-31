@@ -1,6 +1,11 @@
+# Netlify site settings for this app: Base directory = repo root (so npm
+# installs the whole workspace), Package directory = emailer. Paths below are
+# relative to the repo root.
 [build]
-  command = "npm run build"
-  publish = ".next"
+  command = "npm run build -w emailer"
+  publish = "emailer/.next"
+  # Skip the deploy unless this app, shared code, or dependencies changed.
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- emailer packages package.json package-lock.json"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

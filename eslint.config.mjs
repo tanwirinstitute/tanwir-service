@@ -16,6 +16,7 @@ const eslintConfig = defineConfig([
     "emailer/**",
     "admin/**",
     "api/**",
+    "packages/**",
   ]),
 ]);
 
