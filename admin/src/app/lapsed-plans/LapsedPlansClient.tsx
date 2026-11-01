@@ -15,6 +15,18 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+function daysUntil(iso: string): number {
+  return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000));
+}
+
+type StatusFilter = "all" | LapsedPlan["status"];
+
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "at-risk", label: "At risk" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
 function fullName(plan: LapsedPlan): string {
   return [plan.firstName, plan.lastName].filter(Boolean).join(" ");
 }
@@ -49,6 +61,15 @@ function IconUsers({ className }: IconProps) {
       <path d="M3.5 19c0-3 2.5-5.25 5.5-5.25S14.5 16 14.5 19" />
       <circle cx="17.25" cy="9.5" r="2.4" />
       <path d="M15.6 14.3c2.1.5 3.9 2.2 3.9 4.7" />
+    </svg>
+  );
+}
+
+function IconClock({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
     </svg>
   );
 }
@@ -97,6 +118,7 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
 export default function LapsedPlansClient({ report, error }: { report: LapsedPlansReport | null; error: string | null }) {
   const [query, setQuery] = useState("");
   const [product, setProduct] = useState("all");
+  const [status, setStatus] = useState<StatusFilter>("all");
 
   const products = useMemo(() => [...new Set(report?.plans.map((p) => p.productName) ?? [])].sort(), [report]);
 
@@ -105,16 +127,20 @@ export default function LapsedPlansClient({ report, error }: { report: LapsedPla
     return (report?.plans ?? []).filter(
       (p) =>
         (product === "all" || p.productName === product) &&
+        (status === "all" || p.status === status) &&
         (!needle || [fullName(p), p.email, p.phone ?? ""].some((field) => field.toLowerCase().includes(needle)))
     );
-  }, [report, query, product]);
+  }, [report, query, product, status]);
 
+  const atRiskCount = report?.plans.filter((p) => p.status === "at-risk").length ?? 0;
+  const cancelledCount = (report?.plans.length ?? 0) - atRiskCount;
   const outstanding = rows.reduce((sum, p) => sum + p.expectedTotal - p.amountPaid, 0);
 
   const handleExport = useCallback(() => {
-    const header = ["Name", "Email", "Phone", "Course", "Semester", "Installments paid", "Installment", "Paid", "Full price", "Outstanding", "Last payment", "Days since"];
+    const header = ["Status", "Name", "Email", "Phone", "Course", "Semester", "Installments paid", "Installment", "Paid", "Full price", "Outstanding", "Last payment", "Missed payment", "Cancels on"];
     const lines = rows.map((p) =>
       [
+        p.status === "at-risk" ? "At risk" : "Cancelled",
         fullName(p),
         p.email,
         p.phone,
@@ -126,7 +152,8 @@ export default function LapsedPlansClient({ report, error }: { report: LapsedPla
         p.expectedTotal.toFixed(2),
         (p.expectedTotal - p.amountPaid).toFixed(2),
         p.lastPaymentOn.slice(0, 10),
-        p.daysSinceLastPayment,
+        p.missedPaymentOn.slice(0, 10),
+        p.cancelsOn.slice(0, 10),
       ]
         .map(csvCell)
         .join(",")
@@ -156,7 +183,7 @@ export default function LapsedPlansClient({ report, error }: { report: LapsedPla
           <div>
             <h1>Lapsed Payment Plans</h1>
             <p className="dashboard-subtitle">
-              {report.academicYear} enrollments with no installment in 35+ days and less than the full price paid
+              {report.academicYear} plans with a missed installment. Squarespace cancels a plan 15 days after a missed payment.
             </p>
           </div>
         </Link>
@@ -175,7 +202,8 @@ export default function LapsedPlansClient({ report, error }: { report: LapsedPla
       </header>
 
       <div className="stat-grid">
-        <StatCard icon={<IconUsers className="stat-icon-svg" />} label="Lapsed plans" value={rows.length} />
+        <StatCard icon={<IconClock className="stat-icon-svg" />} label="At risk: reach out" value={atRiskCount} />
+        <StatCard icon={<IconUsers className="stat-icon-svg" />} label="Cancelled: fix manually" value={cancelledCount} />
         <StatCard icon={<IconWallet className="stat-icon-svg" />} label="Outstanding" value={formatMoney(outstanding)} />
       </div>
 
@@ -200,6 +228,18 @@ export default function LapsedPlansClient({ report, error }: { report: LapsedPla
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
+        <div className="segmented" role="group" aria-label="Plan status">
+          {STATUS_FILTERS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={status === option.value ? "segmented-btn active" : "segmented-btn"}
+              onClick={() => setStatus(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
         <select value={product} onChange={(event) => setProduct(event.target.value)}>
           <option value="all">All courses</option>
           {products.map((name) => (
@@ -216,17 +256,27 @@ export default function LapsedPlansClient({ report, error }: { report: LapsedPla
             <table className="crm-table">
               <thead>
                 <tr>
+                  <th>Status</th>
                   <th>Student</th>
                   <th>Phone</th>
                   <th>Course</th>
                   <th>Paid</th>
                   <th>Outstanding</th>
-                  <th>Last payment</th>
+                  <th>Missed payment</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((p) => (
                   <tr key={p.lineItemId} className="student-tr">
+                    <td data-label="Status">
+                      <span className={p.status === "at-risk" ? "status-pill warn" : "status-pill danger"}>
+                        <span className="status-dot" aria-hidden="true" />
+                        {p.status === "at-risk" ? `${daysUntil(p.cancelsOn)} days left` : "Cancelled"}
+                      </span>
+                      <div className="student-email">
+                        {p.status === "at-risk" ? `Cancels ${formatDate(p.cancelsOn)}` : `On ${formatDate(p.cancelsOn)}`}
+                      </div>
+                    </td>
                     <td className="col-student">
                       <div className="student-identity">
                         <span className="avatar" aria-hidden="true">
@@ -252,9 +302,9 @@ export default function LapsedPlansClient({ report, error }: { report: LapsedPla
                       </div>
                     </td>
                     <td data-label="Outstanding">{formatMoney(p.expectedTotal - p.amountPaid)}</td>
-                    <td data-label="Last payment">
-                      {formatDate(p.lastPaymentOn)}
-                      <div className="student-email">{p.daysSinceLastPayment} days ago</div>
+                    <td data-label="Missed payment">
+                      {formatDate(p.missedPaymentOn)}
+                      <div className="student-email">Last paid {formatDate(p.lastPaymentOn)}</div>
                     </td>
                   </tr>
                 ))}
@@ -264,11 +314,11 @@ export default function LapsedPlansClient({ report, error }: { report: LapsedPla
         ) : (
           <div className="empty-state">
             <IconInbox className="empty-icon" />
-            <h2>{report.plans.length === 0 ? "No lapsed payment plans" : "No students match"}</h2>
+            <h2>{report.plans.length === 0 ? "No missed payments" : "No students match"}</h2>
             <p>
               {report.plans.length === 0
                 ? "Everyone on a payment plan this year is paid up or still paying."
-                : "Try adjusting your search or course filter."}
+                : "Try adjusting your search, status, or course filter."}
             </p>
           </div>
         )}

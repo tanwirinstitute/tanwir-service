@@ -8,12 +8,21 @@ const STUDENTS_COLLECTION = process.env.STUDENTS_COLLECTION || "students";
 const COURSE_LINE_ITEM_TYPES = new Set(["SERVICE", "PAYWALL_PRODUCT"]);
 
 /**
- * Squarespace bills payment-plan installments roughly every 30 days
- * (confirmed against live order data, Nov 2026). No installment for 35 days
- * means the plan stopped: the member cancelled, or the card kept failing.
- * The Orders API has no subscription/cancellation field to read instead.
+ * Squarespace bills each installment on the same day of the month as the
+ * first (live order data, Nov 2026: Aug 22, Sep 22, ...). An installment
+ * isn't counted as missed until a day after it was due, so one that's still
+ * processing isn't flagged.
  */
-const LAPSED_AFTER_DAYS = 35;
+const MISSED_AFTER_DAYS = 1;
+
+/**
+ * After a missed installment Squarespace keeps retrying the card for 15 days,
+ * then cancels the plan. Inside that window the student can still save it by
+ * updating their payment method; after it, the plan has to be fixed by hand.
+ */
+const CANCEL_AFTER_DAYS = 15;
+
+const DAY_MS = 86_400_000;
 
 /** Rounding slack when comparing what was paid to the discounted list price. */
 const PAID_IN_FULL_TOLERANCE = 1;
@@ -31,7 +40,12 @@ export interface LapsedPlan {
   amountPaid: number;
   expectedTotal: number;
   lastPaymentOn: string;
-  daysSinceLastPayment: number;
+  /** When the installment after lastPaymentOn was due. */
+  missedPaymentOn: string;
+  /** When Squarespace cancels (or cancelled) the plan: missedPaymentOn + 15 days. */
+  cancelsOn: string;
+  /** at-risk: still inside the 15-day window, reach out. cancelled: past it, remediate manually. */
+  status: "at-risk" | "cancelled";
 }
 
 export interface LapsedPlansReport {
@@ -77,13 +91,23 @@ function groupEnrollments(orders: SquarespaceOrder[]): Enrollment[] {
   return [...byLineItem.values()];
 }
 
+/** Same day next month, clamped to the month's end (Jan 31 -> Feb 28). */
+function addOneMonth(iso: string): Date {
+  const date = new Date(iso);
+  const next = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
+  const lastDay = new Date(Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0)).getUTCDate();
+  next.setUTCDate(Math.min(date.getUTCDate(), lastDay));
+  next.setUTCHours(date.getUTCHours(), date.getUTCMinutes(), date.getUTCSeconds(), date.getUTCMilliseconds());
+  return next;
+}
+
 /** Earliest fetch date: registration for a Fall term opens months ahead, so start in March. */
 function fetchWindowStart(academicYear: string): string {
   return `${academicYear.slice(0, 4)}-03-01T00:00:00.000Z`;
 }
 
 /**
- * Enrollments in the active academic year whose installments stopped before
+ * Enrollments in the active academic year that missed an installment before
  * the course was paid off. "Paid off" means the discounted list price:
  * coursePricing.ts's price, times quantity, reduced by the same discount
  * fraction Squarespace applied to the first order (financial-aid codes
@@ -122,8 +146,9 @@ export async function findLapsedPaymentPlans(now = new Date()): Promise<LapsedPl
     if (installments.length === 1 && installmentAmount >= expectedTotal / 2 - PAID_IN_FULL_TOLERANCE) continue;
 
     const lastPaymentOn = installments[installments.length - 1].createdOn;
-    const daysSinceLastPayment = Math.floor((now.getTime() - new Date(lastPaymentOn).getTime()) / 86_400_000);
-    if (daysSinceLastPayment < LAPSED_AFTER_DAYS) continue;
+    const missedPaymentOn = addOneMonth(lastPaymentOn);
+    if (now.getTime() < missedPaymentOn.getTime() + MISSED_AFTER_DAYS * DAY_MS) continue;
+    const cancelsOn = new Date(missedPaymentOn.getTime() + CANCEL_AFTER_DAYS * DAY_MS);
 
     lapsed.push({
       lineItemId: lineItem.id,
@@ -135,7 +160,9 @@ export async function findLapsedPaymentPlans(now = new Date()): Promise<LapsedPl
       amountPaid,
       expectedTotal,
       lastPaymentOn,
-      daysSinceLastPayment,
+      missedPaymentOn: missedPaymentOn.toISOString(),
+      cancelsOn: cancelsOn.toISOString(),
+      status: now < cancelsOn ? "at-risk" : "cancelled",
     });
   }
 
@@ -158,7 +185,14 @@ export async function findLapsedPaymentPlans(now = new Date()): Promise<LapsedPl
         phone: (student?.phone as string | null) ?? null,
       };
     })
-    .sort((a, b) => b.expectedTotal - b.amountPaid - (a.expectedTotal - a.amountPaid));
+    // At-risk first, soonest deadline on top; then cancelled, most recent first.
+    .sort((a, b) =>
+      a.status !== b.status
+        ? (a.status === "at-risk" ? -1 : 1)
+        : a.status === "at-risk"
+          ? a.cancelsOn.localeCompare(b.cancelsOn)
+          : b.cancelsOn.localeCompare(a.cancelsOn)
+    );
 
   return { academicYear, plans, productsMissingListPrice: [...missingPrice].sort() };
 }

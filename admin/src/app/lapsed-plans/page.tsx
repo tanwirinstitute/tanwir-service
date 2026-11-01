@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Tanwir Institute - Lapsed Payment Plans",
-  description: "Students whose payment plan stopped before the course was paid off",
+  description: "Missed plan payments: reach out within 15 days, or fix cancelled plans",
 };
 
 /**

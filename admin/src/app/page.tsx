@@ -45,7 +45,7 @@ const TOOLS: { href: string; title: string; description: string }[] = [
   {
     href: "/lapsed-plans",
     title: "Lapsed Payment Plans",
-    description: "Students whose payment plan stopped before the course was paid off",
+    description: "Missed plan payments: reach out within 15 days, or fix cancelled plans",
   },
 ];
 
