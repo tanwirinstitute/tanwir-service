@@ -42,6 +42,11 @@ const TOOLS: { href: string; title: string; description: string }[] = [
     title: "Scholarships",
     description: "Financial aid applications and Zakat-funded award tracking",
   },
+  {
+    href: "/lapsed-plans",
+    title: "Lapsed Payment Plans",
+    description: "Students whose payment plan stopped before the course was paid off",
+  },
 ];
 
 export default async function HomePage() {

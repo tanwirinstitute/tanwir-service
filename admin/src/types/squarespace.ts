@@ -64,6 +64,8 @@ export interface SquarespaceOrder {
   lineItems: SquarespaceLineItem[];
   discountLines?: SquarespaceDiscountLine[];
   discountTotal?: { currency: string; value: string };
+  subtotal?: { currency: string; value: string };
+  paymentState?: string;
   [key: string]: unknown;
 }
 
