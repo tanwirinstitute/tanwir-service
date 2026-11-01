@@ -26,6 +26,8 @@ export const COURSE_LIST_PRICES: Record<string, number> = {
   "Advanced Studies | Full Year": 500,
   "Advanced Studies | Fall Session": 250,
   "Taqwa for Teens": 500,
+  "Taqwa for Teens | Full Year": 500,
+  "Taqwa for Teens | Fall Session": 250,
   "Taqwa for Teens (Spring Semester)": 250,
 };
 
